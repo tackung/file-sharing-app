@@ -139,12 +139,14 @@ const Home: React.FC = () => {
 
   const handleDownload = async (filename: string) => {
     try {
-      const response = await fetch(`/api/download?file=${filename}`);
+      const encodedFilename = encodeURIComponent(filename);
+      const response = await fetch(`/api/download?file=${encodedFilename}`);
       if (response.ok) {
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
+        // ダウンロードするファイル名は、エンコードせずにそのまま指定する
         a.download = filename;
         document.body.appendChild(a);
         a.click();
