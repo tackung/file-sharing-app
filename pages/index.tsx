@@ -3,6 +3,8 @@ import { useRouter } from "next/router";
 import { useAuth } from "@/context/auth";
 import { login, logout } from "@/libs/auth";
 import LoginButton from "@/components/LoginButton";
+//import styles from './LoginPage.module.css';
+import styles from "@/styles/LoginPage.module.css";
 
 const LoginPage = () => {
   const user = useAuth();
@@ -29,30 +31,15 @@ const LoginPage = () => {
   }, [user, router]);
 
   return (
-    <div>
-      <div style={{ display: "flex", height: "100vh" }}>
-        <div
-          style={{
-            flex: 1,
-            display: "flex",
-            flexDirection: "column",
-            justifyContent: "center",
-            alignItems: "center",
-          }}
-        >
-          <div style={{ fontSize: "2em" }}>HAL-SHARE</div>
+    <div
+      className={styles.backgroundImage}
+      style={{ backgroundImage: "url('login-image-2.jpeg')" }}
+    >
+      <div className={styles.overlay}>
+        <div className={styles.content}>
+          <h1 className={styles.title}>HAL-SHARE</h1>
           {user === null && !waiting && <LoginButton onClick={signIn} />}
         </div>
-        <div
-          style={{
-            flex: 2,
-            backgroundImage: "url('login-image.jpeg')",
-            backgroundSize: "cover",
-            backgroundPosition: "center",
-            backgroundRepeat: "no-repeat",
-            margin: "7px",
-          }}
-        ></div>
       </div>
     </div>
   );

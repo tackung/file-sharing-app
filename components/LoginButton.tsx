@@ -10,7 +10,11 @@ const LoginButton: React.FC<LoginButtonProps> = ({ onClick }) => {
   return (
     <button
       onClick={onClick}
-      style={{ display: "flex", alignItems: "center", fontSize: "25px" }}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        fontSize: "35px",
+      }}
     >
       <span>
         <MdOutlineLogin />
