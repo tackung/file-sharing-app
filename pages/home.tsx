@@ -169,7 +169,8 @@ const Home: React.FC = () => {
     setShowConfirmDialog(false);
     if (fileToDelete) {
       try {
-        const response = await fetch(`/api/delete?file=${fileName}`, {
+        const encodedFilename = encodeURIComponent(fileName);
+        const response = await fetch(`/api/delete?file=${encodedFilename}`, {
           method: "DELETE",
         });
         if (response.ok) {
