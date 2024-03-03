@@ -30,7 +30,7 @@ const Header: React.FC<HeaderProps> = ({ user, logout }) => {
     <HeaderContainer className="flex justify-between items-center bg-gray-900 text-white">
       <HeaderLogo className="ml-4 mb-2 flex items-center">
         <FaHandsHoldingCircle size={40} className="mr-4 ml-2" />
-        HAL-share
+        HAL-SHARE
       </HeaderLogo>
       {user && (
         <button

@@ -233,45 +233,43 @@ const Home: React.FC = () => {
               ↺
             </button>
           </div>
-          <div>
-            {files.map((file, index) => (
-              <div key={index} className="flex items-center mb-4">
-                <div className="flex-shrink-0">
-                  <div className="h-12 w-12 rounded-lg bg-gray-200 flex items-center justify-center">
-                    <FontAwesomeIcon
-                      icon={getFileIcon(file.name)}
-                      className="text-2xl"
-                    />
-                  </div>
+          {files.map((file, index) => (
+            <div key={index} className="flex items-center justify-between mb-4">
+              <div className="flex-shrink-0 mr-4">
+                <div className="h-12 w-12 rounded-lg bg-gray-200 flex items-center justify-center">
+                  <FontAwesomeIcon
+                    icon={getFileIcon(file.name)}
+                    className="text-2xl"
+                  />
                 </div>
-                <div className="ml-4">
-                  <h6 className="text-lg font-semibold">{file.name}</h6>
-                  <p className="text-gray-600">
-                    ファイルサイズ：{formatFileSize(parseInt(file.size, 10))}
-                  </p>
-                  <p className="text-gray-600">
-                    アップロード日時：{convertToJST(file.updated)}
-                  </p>
-                </div>
-                <div>
+              </div>
+              <div className="flex flex-col flex-grow">
+                <h6 className="text-lg font-semibold">{file.name}</h6>
+                <p className="text-gray-600">
+                  ファイルサイズ：{formatFileSize(parseInt(file.size, 10))}
+                </p>
+                <p className="text-gray-600">
+                  アップロード日時：{convertToJST(file.updated)}
+                </p>
+                <div className="flex">
                   <button
                     onClick={() => handleDownload(file.name)}
-                    className="ml-2 text-blue-500 hover:text-blue-700"
+                    className="flex items-center text-blue-500 hover:text-blue-700 mr-4"
                   >
-                    <FontAwesomeIcon icon={faDownload} className="h-7 ml-6" />
+                    <FontAwesomeIcon icon={faDownload} className="h-5 mr-1" />
+                    <span>ダウンロード</span>
                   </button>
-                </div>
-                <div>
                   <button
                     onClick={() => handleDeleteClick(file.name)}
-                    className="ml-2 text-red-500 hover:text-red-700"
+                    className="flex items-center text-red-500 hover:text-red-700"
                   >
-                    <FontAwesomeIcon icon={faTrash} className="h-7 ml-4" />
+                    <FontAwesomeIcon icon={faTrash} className="h-5 mr-1" />
+                    <span>削除</span>
                   </button>
                 </div>
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
           {showConfirmDialog && fileToDelete && (
             <ConfirmDialog
               message={`🤔 ほんとうに"${fileToDelete}"を削除してもよいですか？`}
