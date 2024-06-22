@@ -2,7 +2,7 @@ import Header from "@/components/Header";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import { useAuth } from "@/context/auth";
 import { useRouter } from "next/router";
-import { login, logout } from "@/libs/auth";
+import { logout } from "@/libs/auth";
 import { useState, useEffect } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -14,6 +14,7 @@ import {
   faUpload,
   faTrash,
 } from "@fortawesome/free-solid-svg-icons";
+import { TailSpin } from "react-loader-spinner";
 
 interface FileData {
   name: string;
@@ -26,10 +27,12 @@ const Home: React.FC = () => {
   const router = useRouter();
   const [file, setFile] = useState<File | null>(null); // POSTアップロード用
   const [files, setFiles] = useState<FileData[]>([]); // GETファイルリスト用
-  // const [selectedFileName, setSelectedFileName] = useState<string>("");
   const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState<boolean>(false);
   const [fileToDelete, setFileToDelete] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
+  const [downloading, setDownloading] = useState<boolean>(false);
+
   useEffect(() => {
     // ユーザーがログインしていない場合は、ルートページにリダイレクト
     if (!user) {
@@ -41,7 +44,6 @@ const Home: React.FC = () => {
     const response = await fetch("/api/get_files");
     if (response.ok) {
       const data = await response.json();
-      //setFiles(data);
 
       const filterData = data
         .filter((file: FileData) => file.name !== "uploads/")
@@ -74,31 +76,62 @@ const Home: React.FC = () => {
       return;
     }
 
-    const formData = new FormData();
-    formData.append("file", file);
-
     try {
-      const response = await fetch("/api/upload", {
+      const response = await fetch("/api/generate_upload_url", {
         method: "POST",
-        body: formData,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileName: file.name,
+          contentType: file.type,
+        }),
       });
 
-      if (response.ok) {
-        alert("ファイルがアップロードされました");
-        setFile(null); // アップロード成功後、ファイル選択をリセット
-        setSelectedFileName(null);
-        await fetchFileList(); // ファイルリスト更新
-      } else {
-        alert("ファイルのアップロードに失敗しました");
+      if (!response.ok) {
+        throw new Error("Failed to get upload URL");
       }
+
+      const { url } = await response.json();
+
+      const xhr = new XMLHttpRequest();
+      xhr.open("PUT", url, true);
+      xhr.setRequestHeader("Content-Type", file.type);
+      xhr.timeout = 600000; // 600,000ms = 10min
+
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) {
+          const percentComplete = (event.loaded / event.total) * 100;
+          setUploadProgress(percentComplete);
+        }
+      };
+
+      xhr.onload = () => {
+        if (xhr.status === 200) {
+          alert("ファイルがアップロードされました！");
+          setFile(null);
+          setSelectedFileName(null);
+          fetchFileList();
+          setUploadProgress(0);
+        } else {
+          alert("ファイルのアップロードに失敗しました");
+          setUploadProgress(0);
+        }
+      };
+
+      xhr.onerror = () => {
+        alert("アップロード中にエラーが発生しました");
+        setUploadProgress(0);
+      };
+
+      xhr.send(file);
     } catch (error) {
-      console.error("アップロード中にエラーが発生しました", error);
+      console.log("アップロード中にエラーが発生しました", error);
+      setUploadProgress(0);
     }
   };
 
   const getFileIcon = (filename: string) => {
-    const extenstion = filename.split(".").pop();
-    switch (extenstion) {
+    const extension = filename.split(".").pop();
+    switch (extension) {
       case "wav":
       case "mp3":
         return faFileAudio;
@@ -113,14 +146,13 @@ const Home: React.FC = () => {
     }
   };
 
-  // byte -> 適切な単位のファイルサイズに変換
   const formatFileSize = (sizeInBytes: number) => {
     const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
     if (sizeInBytes === 0) return "0 Byte";
 
     const i = Math.floor(Math.log(sizeInBytes) / Math.log(1024));
-    if (i === 0) return `${sizeInBytes} ${sizes[i]}`; // Bytesの場合はそのまま
-    return `${(sizeInBytes / Math.pow(1024, i)).toFixed(2)} ${sizes[i]}`; // 小数点2桁まで
+    if (i === 0) return `${sizeInBytes} ${sizes[i]}`;
+    return `${(sizeInBytes / Math.pow(1024, i)).toFixed(2)} ${sizes[i]}`;
   };
 
   const convertToJST = (dateString: string) => {
@@ -138,25 +170,38 @@ const Home: React.FC = () => {
   };
 
   const handleDownload = async (filename: string) => {
+    setDownloading(true);
     try {
-      const encodedFilename = encodeURIComponent(filename);
-      const response = await fetch(`/api/download?file=${encodedFilename}`);
+      const response = await fetch("/api/generate_download_url", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ fileName: filename }),
+      });
+
       if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
+        const data = await response.json();
+        const url = data.url;
+
+        const fileResponse = await fetch(url);
+        const blob = await fileResponse.blob();
+        const blobUrl = window.URL.createObjectURL(blob);
+
         const a = document.createElement("a");
-        a.href = url;
-        // ダウンロードするファイル名は、エンコードせずにそのまま指定する
+        a.href = blobUrl;
         a.download = filename;
         document.body.appendChild(a);
         a.click();
         window.URL.revokeObjectURL(url);
         a.remove();
       } else {
-        console.error("ダウンロードに失敗しました");
+        console.error("Failed file download");
       }
     } catch (error) {
-      console.error("ダウンロード中にエラーが発生しました", error);
+      console.error("ダウンロード中にエラーが発生しました");
+    } finally {
+      setDownloading(false);
     }
   };
 
@@ -224,6 +269,12 @@ const Home: React.FC = () => {
             <p>選択されたファイル: {selectedFileName}</p>
           </div>
         )}
+        {uploadProgress > 0 && (
+          <div className="p-4">
+            <span>アップロード状況：{uploadProgress.toFixed(1)}%</span>
+            <progress value={uploadProgress} max="100"></progress>
+          </div>
+        )}
       </div>
       <div className="p-4">
         <div className="bg-white shadow-lg rounded-lg p-6">
@@ -257,7 +308,10 @@ const Home: React.FC = () => {
                 <div className="flex">
                   <button
                     onClick={() => handleDownload(file.name)}
-                    className="flex items-center text-blue-500 hover:text-blue-700 mr-4"
+                    className={`flex items-center text-blue-500 hover:text-blue-700 mr-4 ${
+                      downloading ? "cursor-not-allowed" : ""
+                    }`}
+                    disabled={downloading}
                   >
                     <FontAwesomeIcon icon={faDownload} className="h-5 mr-1" />
                     <span>ダウンロード</span>
@@ -282,6 +336,14 @@ const Home: React.FC = () => {
           )}
         </div>
       </div>
+      {downloading && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
+          <div className="flex items-center justify-center">
+            <TailSpin color="#3b82f6" height={70} width={70} />
+            <span className="ml-4 text-white text-lg">ダウンロード中...</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
