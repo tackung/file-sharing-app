@@ -78,4 +78,4 @@ docker push gcr.io/<push先>
 
 ### 構成概要図
 
-<img src="./images/architecture.png" alt="コンポーネント図" width=100%>
+<img src="./images/architecture.png" alt="コンポーネント図" width=75%>
