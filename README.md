@@ -1,38 +1,81 @@
+# file-share - プライベートメンバー用クラウドファイルシェアアプリ
+
 This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
 
-## Getting Started
+## What is this?
 
-First, run the development server:
+(エレベーターピッチ)
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
+- `安価でファイル共有` がしたい
+- `複数人で活動しているチーム` 向けの、
+- `file-share` というアプリは、
+- `プライベートメンバー向けクラウドストレージサービス` である。
+- これは `安価でチーム内でのファイル共有` ができ、
+- `GoogleDriveやDropBox` とは違って、
+- `プランや容量を気にせず圧倒的安価でファイルを保管・共有することができる機能` が備わっている。
+
+## 機能
+
+- 事前にホワイトリストに登録した Google アカウントでの認証
+- ブラウザ上でのファイルアップロード/ダウンロード/削除
+
+### デモ
+
+<img src="./images/demo.gif" alt="demo" width=90%>
+
+## 実行方法
+
+### 実行環境
+
+```
+node: >= v18.12
+next: 14.0.4
+react: 18.2.0
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### アプリの起動方法
 
-You can start editing the page by modifying `pages/index.tsx`. The page auto-updates as you edit the file.
+(ローカルの場合)
 
-[API routes](https://nextjs.org/docs/api-routes/introduction) can be accessed on [http://localhost:3000/api/hello](http://localhost:3000/api/hello). This endpoint can be edited in `pages/api/hello.ts`.
+1. `key-sa-storage.json` に自身の情報を追記する
+2. アプリを起動
+   ```bash
+   yarn dev
+   ```
+3. ブラウザ上で[http://localhost:3000](http://localhost:3000)にアクセスする
 
-The `pages/api` directory is mapped to `/api/*`. Files in this directory are treated as [API routes](https://nextjs.org/docs/api-routes/introduction) instead of React pages.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/basic-features/font-optimization) to automatically optimize and load Inter, a custom Google Font.
+(クラウド上へのデプロイの場合)
 
-## Learn More
+1. イメージの build と GCR への push
 
-To learn more about Next.js, take a look at the following resources:
+```
+docker build --platform linux/amd64 -t <タグ名> .
+docker push gcr.io/<push先>
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+2. GCR 上で下記の環境変数を指定のうえデプロイ
+   - `NEXT_PUBLIC_FIREBASE_API_KEY`: Firebase におけるパブック API キー
+   - `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`: Firebase 上で設定しているドメイン名(`xxx.firebaseapp.com`)
+   - `NEXT_PUBLIC_FIREBASE_PROJECT_ID`: Firebase のプロジェクト名
+   - `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`: Firebase におけるストレージバケット名
+   - `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`: Firebase におけるメッセージング送信用 ID
+   - `NEXT_PUBLIC_FIREBASE_APP_ID`:
+   - `GCP_PROJECT_ID`: GCP におけるプロジェクト名
+   - `BUCKET_NAME`: GCS のバケット名
+   - `ALLOWED_EMAILS`: ログイン可能な Google アカウント(メールアドレス)
+3. GCR で定義された URL(`https://xxx.a.run.app`)からアクセス
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
+## 技術スタック
 
-## Deploy on Vercel
+- フロントエンド: Next.js / React / TypeScript
+- バックエンド: Node.js / TypeScript
+- インフラ: GoogleCloud, Firebase
+  - 認証: Firebase Authentication
+  - ストレージ: CloudStorage
+  - デプロイ: Docker on CloudRun
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### 構成概要図
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+<img src="./images/architecture.png" alt="コンポーネント図" width=100%>
