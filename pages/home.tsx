@@ -13,8 +13,10 @@ import {
   faDownload,
   faUpload,
   faTrash,
+  faPause,
+  faPlay,
 } from "@fortawesome/free-solid-svg-icons";
-import { TailSpin } from "react-loader-spinner";
+import { TailSpin, ThreeDots } from "react-loader-spinner";
 
 interface FileData {
   name: string;
@@ -176,6 +178,8 @@ const Home: React.FC = () => {
 
   const [currentPlayingFile, setCurrentPlayingFile] = useState<string | null>(null);
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
+const [audioLoading, setAudioLoading] = useState(false);
+const [loadingAudioFile, setLoadingAudioFile] = useState<string | null>(null);
 
   const handlePlayAudio = (filename: string) => {
     if (currentPlayingFile === filename && currentAudioRef.current) {
@@ -187,18 +191,26 @@ const Home: React.FC = () => {
         currentAudioRef.current.pause();
       }
       const audio = new Audio(`/api/get_audio?file=${encodeURIComponent(filename)}`);
+      setAudioLoading(true);
+      setLoadingAudioFile(filename);
+      audio.oncanplaythrough = () => {
+        setAudioLoading(false);
+        setLoadingAudioFile(null);
+        audio.play();
+        currentAudioRef.current = audio;
+        setCurrentPlayingFile(filename);
+      };
       audio.onended = () => {
         setCurrentPlayingFile(null);
         currentAudioRef.current = null;
       };
       audio.onerror = () => {
         console.error("Error loading audio");
+        setAudioLoading(false);
+        setLoadingAudioFile(null);
         setCurrentPlayingFile(null);
         currentAudioRef.current = null;
       };
-      audio.play();
-      currentAudioRef.current = audio;
-      setCurrentPlayingFile(filename);
     }
   };
 
@@ -340,16 +352,30 @@ const Home: React.FC = () => {
                 <p className="text-sm text-gray-500 mb-3">
                   アップロード日時：{convertToJST(file.updated)}
                 </p>
-                <div className="flex items-center space-x-4">
+                <div className="flex items-start mb-2">
                   <button
                     onClick={isAudio(file.name) ? () => handlePlayAudio(file.name) : undefined}
                     disabled={!isAudio(file.name)}
                     aria-label={isAudio(file.name) ? (currentPlayingFile === file.name ? "Stop audio" : "Play audio") : "File"}
-                    className={`flex items-center px-3 py-2 rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-green-400 ${isAudio(file.name) ? "border border-green-500 text-green-600 hover:border-green-600 hover:text-green-800" : "border border-gray-300 text-gray-400 cursor-not-allowed"}`}
+                    className={`flex items-center justify-center w-100 px-20 py-2 rounded-lg shadow-md transition-transform transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-blue-300 ${isAudio(file.name) ? "bg-blue-500 text-white hover:bg-blue-600" : "bg-gray-300 text-gray-500 cursor-not-allowed"}`}
                   >
-                    <FontAwesomeIcon icon={isAudio(file.name) ? faFileAudio : faFile} className="h-5 mr-1" />
-                    <span>{ isAudio(file.name) ? (currentPlayingFile === file.name ? "Stop" : "Play") : "" }</span>
+                    {isAudio(file.name) && loadingAudioFile === file.name ? (
+                      <ThreeDots color="#ffffff" height={30} width={30}/>
+                    ) : (
+                      <FontAwesomeIcon icon={isAudio(file.name) ? (currentPlayingFile === file.name ? faPause : faPlay) : faFile} className="h-5 mr-5" />
+                    )}
+                    <span>
+                      {isAudio(file.name)
+                        ? currentPlayingFile === file.name
+                          ? "Stop"
+                          : loadingAudioFile === file.name
+                          ? "Loading..."
+                          : "Play"
+                        : ""}
+                    </span>
                   </button>
+                </div>
+                <div className="flex flex-row items-center space-x-2">
                   <button
                     onClick={() => handleDownload(file.name)}
                     aria-label="Download file"
@@ -362,7 +388,8 @@ const Home: React.FC = () => {
                   <button
                     onClick={() => handleDeleteClick(file.name)}
                     aria-label="Delete file"
-                    className="flex items-center px-3 py-2 rounded-md border border-red-500 text-red-600 hover:border-red-600 hover:text-red-800 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-red-400"
+                    //className="flex items-center sm:w-auto max-w-full px-3 py-2 rounded-md border border-red-500 text-red-600 hover:border-red-600 hover:text-red-800 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-red-400 text-sm md:text-base"
+                    className={`flex items-center px-3 py-2 rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-red-400 border border-red-500 text-red-600 hover:border-red-600 hover:text-red-800`}
                   >
                     <FontAwesomeIcon icon={faTrash} className="h-5 mr-1" />
                     <span>Delete</span>
