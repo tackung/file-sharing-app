@@ -3,7 +3,7 @@ import ConfirmDialog from "@/components/ConfirmDialog";
 import { useAuth } from "@/context/auth";
 import { useRouter } from "next/router";
 import { logout } from "@/libs/auth";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faFileAudio,
@@ -146,6 +146,11 @@ const Home: React.FC = () => {
     }
   };
 
+  const isAudio = (filename: string) => {
+    const extension = filename.split(".").pop()?.toLowerCase();
+    return extension === "mp3" || extension === "wav";
+  };
+
   const formatFileSize = (sizeInBytes: number) => {
     const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
     if (sizeInBytes === 0) return "0 Byte";
@@ -167,6 +172,34 @@ const Home: React.FC = () => {
       minute: "2-digit",
       second: "2-digit",
     }).format(jstDate);
+  };
+
+  const [currentPlayingFile, setCurrentPlayingFile] = useState<string | null>(null);
+  const currentAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  const handlePlayAudio = (filename: string) => {
+    if (currentPlayingFile === filename && currentAudioRef.current) {
+      currentAudioRef.current.pause();
+      setCurrentPlayingFile(null);
+      currentAudioRef.current = null;
+    } else {
+      if (currentAudioRef.current) {
+        currentAudioRef.current.pause();
+      }
+      const audio = new Audio(`/api/get_audio?file=${encodeURIComponent(filename)}`);
+      audio.onended = () => {
+        setCurrentPlayingFile(null);
+        currentAudioRef.current = null;
+      };
+      audio.onerror = () => {
+        console.error("Error loading audio");
+        setCurrentPlayingFile(null);
+        currentAudioRef.current = null;
+      };
+      audio.play();
+      currentAudioRef.current = audio;
+      setCurrentPlayingFile(filename);
+    }
   };
 
   const handleDownload = async (filename: string) => {
@@ -278,55 +311,66 @@ const Home: React.FC = () => {
       </div>
       <div className="p-4">
         <div className="bg-white shadow-lg rounded-lg p-6">
-          <div className="flex items-center mb-4">
-            <h5 className="text-xl font-bold">ファイル一覧</h5>
+          <div className="flex items-center justify-between mb-6">
+            <h5 className="text-2xl font-bold text-gray-800">ファイル一覧</h5>
             <button
               onClick={fetchFileList}
-              className="text-black bg-transparent hover:bg-gray-100 py-2 px-2"
+              className="text-gray-500 hover:text-gray-700 transition-colors duration-200"
             >
               ↺
             </button>
           </div>
-          {files.map((file, index) => (
-            <div key={index} className="flex items-center justify-between mb-4">
-              <div className="flex-shrink-0 mr-4">
-                <div className="h-12 w-12 rounded-lg bg-gray-200 flex items-center justify-center">
-                  <FontAwesomeIcon
-                    icon={getFileIcon(file.name)}
-                    className="text-2xl"
-                  />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {files.map((file, index) => (
+              <div key={index} className="bg-gray-50 p-4 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300">
+                <div className="flex items-center mb-3">
+                  <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center mr-3">
+                    <FontAwesomeIcon
+                      icon={getFileIcon(file.name)}
+                      className="text-blue-500 text-2xl"
+                    />
+                  </div>
+                  <div>
+                    <h6 className="text-lg font-semibold text-gray-700">{file.name}</h6>
+                    <p className="text-sm text-gray-500">
+                      {formatFileSize(parseInt(file.size, 10))}
+                    </p>
+                  </div>
                 </div>
-              </div>
-              <div className="flex flex-col flex-grow">
-                <h6 className="text-lg font-semibold">{file.name}</h6>
-                <p className="text-gray-600">
-                  ファイルサイズ：{formatFileSize(parseInt(file.size, 10))}
-                </p>
-                <p className="text-gray-600">
+                <p className="text-sm text-gray-500 mb-3">
                   アップロード日時：{convertToJST(file.updated)}
                 </p>
-                <div className="flex">
+                <div className="flex items-center space-x-4">
+                  <button
+                    onClick={isAudio(file.name) ? () => handlePlayAudio(file.name) : undefined}
+                    disabled={!isAudio(file.name)}
+                    aria-label={isAudio(file.name) ? (currentPlayingFile === file.name ? "Stop audio" : "Play audio") : "File"}
+                    className={`flex items-center px-3 py-2 rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-green-400 ${isAudio(file.name) ? "border border-green-500 text-green-600 hover:border-green-600 hover:text-green-800" : "border border-gray-300 text-gray-400 cursor-not-allowed"}`}
+                  >
+                    <FontAwesomeIcon icon={isAudio(file.name) ? faFileAudio : faFile} className="h-5 mr-1" />
+                    <span>{ isAudio(file.name) ? (currentPlayingFile === file.name ? "Stop" : "Play") : "" }</span>
+                  </button>
                   <button
                     onClick={() => handleDownload(file.name)}
-                    className={`flex items-center text-blue-500 hover:text-blue-700 mr-4 ${
-                      downloading ? "cursor-not-allowed" : ""
-                    }`}
+                    aria-label="Download file"
+                    className={`flex items-center px-3 py-2 rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-400 ${downloading ? "border border-gray-300 text-gray-400 cursor-not-allowed" : "border border-blue-500 text-blue-600 hover:border-blue-600 hover:text-blue-800"}`}
                     disabled={downloading}
                   >
                     <FontAwesomeIcon icon={faDownload} className="h-5 mr-1" />
-                    <span>ダウンロード</span>
+                    <span>Download</span>
                   </button>
                   <button
                     onClick={() => handleDeleteClick(file.name)}
-                    className="flex items-center text-red-500 hover:text-red-700"
+                    aria-label="Delete file"
+                    className="flex items-center px-3 py-2 rounded-md border border-red-500 text-red-600 hover:border-red-600 hover:text-red-800 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-red-400"
                   >
                     <FontAwesomeIcon icon={faTrash} className="h-5 mr-1" />
-                    <span>削除</span>
+                    <span>Delete</span>
                   </button>
                 </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
           {showConfirmDialog && fileToDelete && (
             <ConfirmDialog
               message={`🤔 ほんとうに"${fileToDelete}"を削除してもよいですか？`}
