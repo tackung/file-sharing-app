@@ -1,0 +1,25 @@
+# 1) Node.jsで一般的に不要なもの
+node_modules
+npm-debug.log
+yarn-error.log
+*.log
+
+# 2) Gitや各OSで不要なもの
+.git
+.gitignore
+.DS_Store
+
+# 3) Next.js ビルド成果物やキャッシュ系ディレクトリ
+.next
+out
+dist
+
+# 4) テスト関連
+coverage
+**/__tests__/
+**/*.test.*
+**/*.spec.*
+
+# 5) その他、アップロード不要なファイル・秘密情報など
+.env
+.env.*.local

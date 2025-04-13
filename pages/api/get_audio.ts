@@ -36,6 +36,8 @@ export default async function handler(
     const [fileData] = await fileRef.download();
 
     res.setHeader('Content-Type', 'audio/mpeg');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Accept-Ranges', 'bytes');
     res.status(200).send(fileData);
   } catch (error) {
     console.error("Error retrieving file:", error);

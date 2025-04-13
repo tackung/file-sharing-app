@@ -176,42 +176,70 @@ const Home: React.FC = () => {
     }).format(jstDate);
   };
 
-  const [currentPlayingFile, setCurrentPlayingFile] = useState<string | null>(null);
+  const [currentPlayingFile, setCurrentPlayingFile] = useState<string | null>(
+    null
+  );
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
-const [audioLoading, setAudioLoading] = useState(false);
-const [loadingAudioFile, setLoadingAudioFile] = useState<string | null>(null);
+  const [loadingAudioFile, setLoadingAudioFile] = useState<string | null>(null);
 
-  const handlePlayAudio = (filename: string) => {
+  const handlePlayAudio = async (filename: string) => {
+    // すでに同じファイルを再生中なら停止して終了
     if (currentPlayingFile === filename && currentAudioRef.current) {
       currentAudioRef.current.pause();
       setCurrentPlayingFile(null);
       currentAudioRef.current = null;
-    } else {
-      if (currentAudioRef.current) {
-        currentAudioRef.current.pause();
-      }
-      const audio = new Audio(`/api/get_audio?file=${encodeURIComponent(filename)}`);
-      setAudioLoading(true);
+      return;
+    }
+
+    // 他の音声を再生中の場合、一時停止
+    if (currentAudioRef.current) {
+      currentAudioRef.current.pause();
+      currentAudioRef.current = null;
+      setCurrentPlayingFile(null);
+    }
+
+    // 新しいAudioオブジェクト生成
+    const audio = new Audio(
+      `/api/get_audio?file=${encodeURIComponent(filename)}`
+    );
+    audio.setAttribute("playsinline", "true"); // iOSブラウザでインライン再生を許可する設定
+
+    // ローディング開始：スピナーを出すために対象ファイル名をセット
+    setLoadingAudioFile(filename);
+
+    // 音声イベントのハンドラを設定
+    audio.onwaiting = () => {
+      // バッファ不足などで待ち状態に入ったとき
       setLoadingAudioFile(filename);
-      audio.oncanplaythrough = () => {
-        setAudioLoading(false);
-        setLoadingAudioFile(null);
-        audio.play();
+    };
+    audio.oncanplay = () => {
+      setLoadingAudioFile(null);
+    };
+    audio.oncanplaythrough = () => {
+      setLoadingAudioFile(null);
+    };
+    audio.onerror = () => {
+      // エラーが起きたらローディング終了
+      setLoadingAudioFile(null);
+    };
+    audio.onended = () => {
+      // 再生しきったら状態リセット
+      currentAudioRef.current = null;
+      setCurrentPlayingFile(null);
+      setLoadingAudioFile(null);
+    };
+
+    audio
+      .play()
+      .then(() => {
+        // 再生開始に成功したら、現在再生中のファイル名などをセット
         currentAudioRef.current = audio;
         setCurrentPlayingFile(filename);
-      };
-      audio.onended = () => {
-        setCurrentPlayingFile(null);
-        currentAudioRef.current = null;
-      };
-      audio.onerror = () => {
-        console.error("Error loading audio");
-        setAudioLoading(false);
+      })
+      .catch((err) => {
+        console.error("音声再生に失敗しました", err);
         setLoadingAudioFile(null);
-        setCurrentPlayingFile(null);
-        currentAudioRef.current = null;
-      };
-    }
+      });
   };
 
   const handleDownload = async (filename: string) => {
@@ -334,7 +362,10 @@ const [loadingAudioFile, setLoadingAudioFile] = useState<string | null>(null);
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {files.map((file, index) => (
-              <div key={index} className="bg-gray-50 p-4 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300">
+              <div
+                key={index}
+                className="bg-gray-50 p-4 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300"
+              >
                 <div className="flex items-center mb-3">
                   <div className="h-12 w-12 rounded-full bg-blue-100 flex items-center justify-center mr-3">
                     <FontAwesomeIcon
@@ -343,7 +374,9 @@ const [loadingAudioFile, setLoadingAudioFile] = useState<string | null>(null);
                     />
                   </div>
                   <div>
-                    <h6 className="text-lg font-semibold text-gray-700">{file.name}</h6>
+                    <h6 className="text-lg font-semibold text-gray-700">
+                      {file.name}
+                    </h6>
                     <p className="text-sm text-gray-500">
                       {formatFileSize(parseInt(file.size, 10))}
                     </p>
@@ -354,15 +387,38 @@ const [loadingAudioFile, setLoadingAudioFile] = useState<string | null>(null);
                 </p>
                 <div className="flex items-start mb-2">
                   <button
-                    onClick={isAudio(file.name) ? () => handlePlayAudio(file.name) : undefined}
+                    onClick={
+                      isAudio(file.name)
+                        ? () => handlePlayAudio(file.name)
+                        : undefined
+                    }
                     disabled={!isAudio(file.name)}
-                    aria-label={isAudio(file.name) ? (currentPlayingFile === file.name ? "Stop audio" : "Play audio") : "File"}
-                    className={`flex items-center justify-center w-100 px-20 py-2 rounded-lg shadow-md transition-transform transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-blue-300 ${isAudio(file.name) ? "bg-blue-500 text-white hover:bg-blue-600" : "bg-gray-300 text-gray-500 cursor-not-allowed"}`}
+                    aria-label={
+                      isAudio(file.name)
+                        ? currentPlayingFile === file.name
+                          ? "Stop audio"
+                          : "Play audio"
+                        : "File"
+                    }
+                    className={`flex items-center justify-center w-100 px-20 py-2 rounded-lg shadow-md transition-transform transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-blue-300 ${
+                      isAudio(file.name)
+                        ? "bg-blue-500 text-white hover:bg-blue-600"
+                        : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                    }`}
                   >
                     {isAudio(file.name) && loadingAudioFile === file.name ? (
-                      <ThreeDots color="#ffffff" height={30} width={30}/>
+                      <ThreeDots color="#ffffff" height={30} width={30} />
                     ) : (
-                      <FontAwesomeIcon icon={isAudio(file.name) ? (currentPlayingFile === file.name ? faPause : faPlay) : faFile} className="h-5 mr-5" />
+                      <FontAwesomeIcon
+                        icon={
+                          isAudio(file.name)
+                            ? currentPlayingFile === file.name
+                              ? faPause
+                              : faPlay
+                            : faFile
+                        }
+                        className="h-5 mr-5"
+                      />
                     )}
                     <span>
                       {isAudio(file.name)
@@ -379,7 +435,11 @@ const [loadingAudioFile, setLoadingAudioFile] = useState<string | null>(null);
                   <button
                     onClick={() => handleDownload(file.name)}
                     aria-label="Download file"
-                    className={`flex items-center px-3 py-2 rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-400 ${downloading ? "border border-gray-300 text-gray-400 cursor-not-allowed" : "border border-blue-500 text-blue-600 hover:border-blue-600 hover:text-blue-800"}`}
+                    className={`flex items-center px-3 py-2 rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-400 ${
+                      downloading
+                        ? "border border-gray-300 text-gray-400 cursor-not-allowed"
+                        : "border border-blue-500 text-blue-600 hover:border-blue-600 hover:text-blue-800"
+                    }`}
                     disabled={downloading}
                   >
                     <FontAwesomeIcon icon={faDownload} className="h-5 mr-1" />
@@ -388,8 +448,7 @@ const [loadingAudioFile, setLoadingAudioFile] = useState<string | null>(null);
                   <button
                     onClick={() => handleDeleteClick(file.name)}
                     aria-label="Delete file"
-                    //className="flex items-center sm:w-auto max-w-full px-3 py-2 rounded-md border border-red-500 text-red-600 hover:border-red-600 hover:text-red-800 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-red-400 text-sm md:text-base"
-                    className={`flex items-center px-3 py-2 rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-red-400 border border-red-500 text-red-600 hover:border-red-600 hover:text-red-800`}
+                    className="flex items-center px-3 py-2 rounded-md transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-red-400 border border-red-500 text-red-600 hover:border-red-600 hover:text-red-800"
                   >
                     <FontAwesomeIcon icon={faTrash} className="h-5 mr-1" />
                     <span>Delete</span>
