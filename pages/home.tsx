@@ -29,19 +29,30 @@ interface FileData {
 interface DialogConfig {
   message: string;
   onConfirm: () => void;
+  onCancel?: () => void;
   confirmLabel?: string;
   cancelLabel?: string;
+  variant?: "danger" | "primary";
 }
 
 const Home: React.FC = () => {
   const user = useAuth();
   const router = useRouter();
-  const [file, setFile] = useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [files, setFiles] = useState<FileData[]>([]);
   const [folders, setFolders] = useState<string[]>([]);
-  const [selectedFileName, setSelectedFileName] = useState<string | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<DialogConfig | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
+  const [uploadStatus, setUploadStatus] = useState<{
+    currentFileName: string | null;
+    currentIndex: number;
+    total: number;
+  }>({
+    currentFileName: null,
+    currentIndex: 0,
+    total: 0,
+  });
+  const [uploading, setUploading] = useState<boolean>(false);
   const [downloading, setDownloading] = useState<boolean>(false);
   const [currentPath, setCurrentPath] = useState<string>("");
   const [newFolderName, setNewFolderName] = useState<string>("");
@@ -89,10 +100,23 @@ const Home: React.FC = () => {
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
-    if (files) {
-      setFile(files[0]);
-      setSelectedFileName(files[0].name);
+    if (files && files.length > 0) {
+      const fileArray = Array.from(files);
+      setSelectedFiles((prev) => {
+        const existingNames = new Set(prev.map((file) => file.name));
+        const newFiles = fileArray.filter(
+          (file) => !existingNames.has(file.name)
+        );
+        return [...prev, ...newFiles];
+      });
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
     }
+  };
+
+  const handleRemoveSelectedFile = (fileName: string) => {
+    setSelectedFiles((prev) => prev.filter((file) => file.name !== fileName));
   };
 
   const openConfirm = (config: DialogConfig) => {
@@ -115,83 +139,140 @@ const Home: React.FC = () => {
     setFolderNameError(null);
   };
 
-  const performUpload = async () => {
-    if (!file) return;
-    try {
-      const response = await fetch("/api/generate_upload_url", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fileName: file.name,
-          contentType: file.type,
-          path: currentPath,
-        }),
-      });
+  const performUpload = async (uploadTargets: File[]) => {
+    if (uploadTargets.length === 0) return;
+    setUploading(true);
+    setUploadProgress(0);
+    setUploadStatus({
+      currentFileName: uploadTargets[0].name,
+      currentIndex: 0,
+      total: uploadTargets.length,
+    });
 
-      if (!response.ok) {
-        throw new Error("Failed to get upload URL");
+    try {
+      for (let i = 0; i < uploadTargets.length; i++) {
+        const file = uploadTargets[i];
+        setUploadStatus({
+          currentFileName: file.name,
+          currentIndex: i,
+          total: uploadTargets.length,
+        });
+        setUploadProgress(0);
+
+        const response = await fetch("/api/generate_upload_url", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fileName: file.name,
+            contentType: file.type,
+            path: currentPath,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`${file.name} のアップロードURL取得に失敗しました`);
+        }
+
+        const { url } = await response.json();
+
+        const uploadResult = await new Promise<boolean>((resolve) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open("PUT", url, true);
+          xhr.setRequestHeader("Content-Type", file.type);
+          xhr.timeout = 600000; // 600,000ms = 10min
+
+          xhr.upload.onprogress = (event) => {
+            if (event.lengthComputable) {
+              const percentComplete = (event.loaded / event.total) * 100;
+              setUploadProgress(percentComplete);
+            }
+          };
+
+          xhr.onload = () => {
+            if (xhr.status === 200) {
+              resolve(true);
+            } else {
+              resolve(false);
+            }
+          };
+
+          xhr.onerror = () => {
+            resolve(false);
+          };
+
+          xhr.ontimeout = () => {
+            resolve(false);
+          };
+
+          xhr.send(file);
+        });
+
+        if (!uploadResult) {
+          throw new Error(`${file.name} のアップロードに失敗しました`);
+        }
       }
 
-      const { url } = await response.json();
-
-      const xhr = new XMLHttpRequest();
-      xhr.open("PUT", url, true);
-      xhr.setRequestHeader("Content-Type", file.type);
-      xhr.timeout = 600000; // 600,000ms = 10min
-
-      xhr.upload.onprogress = (event) => {
-        if (event.lengthComputable) {
-          const percentComplete = (event.loaded / event.total) * 100;
-          setUploadProgress(percentComplete);
-        }
-      };
-
-      xhr.onload = () => {
-        if (xhr.status === 200) {
-          alert("ファイルがアップロードされました！");
-          setFile(null);
-          setSelectedFileName(null);
-          fetchFileList();
-          setUploadProgress(0);
-        } else {
-          alert("ファイルのアップロードに失敗しました");
-          setUploadProgress(0);
-        }
-      };
-
-      xhr.onerror = () => {
-        alert("アップロード中にエラーが発生しました");
-        setUploadProgress(0);
-      };
-
-      xhr.send(file);
+      alert("ファイルがアップロードされました！");
+      setSelectedFiles([]);
+      setUploadProgress(0);
+      setUploadStatus({ currentFileName: null, currentIndex: 0, total: 0 });
+      fetchFileList();
     } catch (error) {
       console.log("アップロード中にエラーが発生しました", error);
-      setUploadProgress(0);
+      const message =
+        error instanceof Error
+          ? error.message
+          : "アップロード中にエラーが発生しました";
+      alert(message);
+    } finally {
+      setUploading(false);
     }
   };
 
   const handleUpload = async () => {
-    if (!file) {
+    if (selectedFiles.length === 0) {
       alert("ファイルを選択してください");
       return;
     }
 
-    const exists = files.some((f) => f.name === file.name);
-    if (exists) {
+    const existingNames = new Set(files.map((f) => f.name));
+    const duplicateFiles = selectedFiles.filter((file) =>
+      existingNames.has(file.name)
+    );
+
+    const uploadWithoutDuplicates = () => {
+      const targets = selectedFiles.filter(
+        (file) => !existingNames.has(file.name)
+      );
+      if (targets.length === 0) {
+        alert("すべて同名ファイルのためアップロードを中止しました");
+        return;
+      }
+      performUpload(targets);
+    };
+
+    if (duplicateFiles.length > 0) {
+      const duplicateList = duplicateFiles
+        .map((file) => `・${file.name}`)
+        .join("\n");
       openConfirm({
-        message: `同じフォルダに"${file.name}"が存在します。上書きしますか？`,
-        confirmLabel: "上書きする",
-        cancelLabel: "やめる",
+        message: `同じフォルダに以下のファイルが存在します。\n${duplicateList}\n\n上書きしてアップロードしますか？`,
+        confirmLabel: "上書きしてアップロード",
+        cancelLabel: "重複をスキップ",
+        variant: "primary",
         onConfirm: () => {
           closeConfirm();
-          performUpload();
+          performUpload(selectedFiles);
+        },
+        onCancel: () => {
+          closeConfirm();
+          uploadWithoutDuplicates();
         },
       });
       return;
     }
 
-    await performUpload();
+    await performUpload(selectedFiles);
   };
 
   const getFileIcon = (filename: string) => {
@@ -243,6 +324,7 @@ const Home: React.FC = () => {
     null
   );
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const folderNameInputRef = useRef<HTMLInputElement | null>(null);
   const [loadingAudioFile, setLoadingAudioFile] = useState<string | null>(null);
 
@@ -486,66 +568,103 @@ const Home: React.FC = () => {
           </div>
         </div>
 
-        <div className="bg-white/80 backdrop-blur rounded-xl shadow-sm border border-white/60 p-4 flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <p className="text-xs text-slate-500">アップロード先</p>
-            <p className="text-base font-semibold text-slate-800">
-              uploads/{currentPath || ""}
-            </p>
+        <div className="bg-white/80 backdrop-blur rounded-xl shadow-sm border border-white/60 p-4 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p className="text-xs text-slate-500">アップロード先</p>
+              <p className="text-base font-semibold text-slate-800">
+                uploads/{currentPath || ""}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <label
+                htmlFor="file-upload"
+                className="inline-flex items-center gap-2 cursor-pointer rounded-full bg-blue-600 text-white px-4 py-2 text-sm shadow-sm hover:bg-blue-700 transition-colors"
+              >
+                <FontAwesomeIcon icon={faFile} className="h-4" />
+                <span>ファイルを選択</span>
+                <input
+                  id="file-upload"
+                  name="file-upload"
+                  type="file"
+                  className="sr-only"
+                  ref={fileInputRef}
+                  onChange={handleFileChange}
+                  multiple
+                  accept=".wav,.mp3,.zip,.png,.pdf,.jpg,.jpeg"
+                />
+              </label>
+              <button
+                onClick={handleUpload}
+                disabled={selectedFiles.length === 0 || uploading}
+                className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold shadow-sm transition-colors ${
+                  selectedFiles.length > 0 && !uploading
+                    ? "bg-blue-500 text-white hover:bg-blue-600"
+                    : "bg-slate-200 text-slate-400 cursor-not-allowed"
+                }`}
+              >
+                <FontAwesomeIcon icon={faUpload} className="h-4" />
+                {uploading ? "アップロード中..." : "アップロード"}
+              </button>
+              <button
+                onClick={openFolderModal}
+                className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold shadow-sm transition-colors bg-white text-blue-700 border border-blue-100 hover:border-blue-300"
+              >
+                <FontAwesomeIcon icon={faPlus} className="h-4" />
+                フォルダ作成
+              </button>
+              <button
+                onClick={() => fetchFileList()}
+                className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-semibold shadow-sm transition-colors bg-white text-slate-600 border border-slate-100 hover:border-slate-300"
+              >
+                ↺ 再読み込み
+              </button>
+            </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <label
-              htmlFor="file-upload"
-              className="inline-flex items-center gap-2 cursor-pointer rounded-full bg-blue-600 text-white px-4 py-2 text-sm shadow-sm hover:bg-blue-700 transition-colors"
-            >
-              <FontAwesomeIcon icon={faFile} className="h-4" />
-              <span>ファイルを選択</span>
-              <input
-                id="file-upload"
-                name="file-upload"
-                type="file"
-                className="sr-only"
-                onChange={handleFileChange}
-                accept=".wav,.mp3,.zip,.png,.pdf,.jpg,.jpeg"
-              />
-            </label>
-            <button
-              onClick={handleUpload}
-              disabled={!file}
-              className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold shadow-sm transition-colors ${
-                file
-                  ? "bg-blue-500 text-white hover:bg-blue-600"
-                  : "bg-slate-200 text-slate-400 cursor-not-allowed"
-              }`}
-            >
-              <FontAwesomeIcon icon={faUpload} className="h-4" />
-              アップロード
-            </button>
-            <button
-              onClick={openFolderModal}
-              className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold shadow-sm transition-colors bg-white text-blue-700 border border-blue-100 hover:border-blue-300"
-            >
-              <FontAwesomeIcon icon={faPlus} className="h-4" />
-              フォルダ作成
-            </button>
-            <button
-              onClick={() => fetchFileList()}
-              className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-semibold shadow-sm transition-colors bg-white text-slate-600 border border-slate-100 hover:border-slate-300"
-            >
-              ↺ 再読み込み
-            </button>
-          </div>
-        </div>
 
-        {selectedFileName && (
-          <div className="bg-white/80 border border-white/60 rounded-lg shadow-sm px-4 py-3 text-sm text-slate-700">
-            選択されたファイル: {selectedFileName}
-          </div>
-        )}
-        {uploadProgress > 0 && (
+          {selectedFiles.length > 0 && (
+            <div className="border border-slate-100 rounded-lg p-3 bg-slate-50/60">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <span className="font-semibold text-slate-800">
+                  選択されたファイル ({selectedFiles.length}件)
+                </span>
+                <span className="text-xs text-slate-500">
+                  不要なファイルは×で削除できます
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-2 mt-2">
+                {selectedFiles.map((file) => (
+                  <span
+                    key={file.name}
+                    className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white text-slate-700 border border-slate-200 shadow-sm"
+                  >
+                    <span className="text-xs truncate max-w-[180px]">
+                      {file.name}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveSelectedFile(file.name)}
+                      className="text-slate-400 hover:text-red-500 transition-colors"
+                      aria-label={`${file.name} を選択から削除`}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+        {uploading && (
           <div className="bg-white/80 border border-white/60 rounded-lg shadow-sm px-4 py-3 space-y-2">
-            <div className="flex items-center justify-between text-xs text-slate-600">
-              <span>アップロード中</span>
+            <div className="flex flex-wrap items-center justify-between text-xs text-slate-600 gap-2">
+              <span>
+                アップロード中 ({uploadStatus.currentIndex + 1}/
+                {uploadStatus.total}件)
+              </span>
+              <span className="text-slate-700 font-semibold">
+                {uploadStatus.currentFileName}
+              </span>
               <span>{uploadProgress.toFixed(1)}%</span>
             </div>
             <div className="w-full h-2 rounded-full bg-slate-200 overflow-hidden">
@@ -749,9 +868,10 @@ const Home: React.FC = () => {
           <ConfirmDialog
             message={confirmDialog.message}
             onConfirm={confirmDialog.onConfirm}
-            onCancel={closeConfirm}
+            onCancel={confirmDialog.onCancel ?? closeConfirm}
             confirmLabel={confirmDialog.confirmLabel}
             cancelLabel={confirmDialog.cancelLabel}
+            variant={confirmDialog.variant}
           />
         )}
 

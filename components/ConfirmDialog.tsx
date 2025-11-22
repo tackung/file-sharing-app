@@ -6,6 +6,7 @@ interface ConfirmDialogProps {
   onCancel: () => void;
   confirmLabel?: string;
   cancelLabel?: string;
+  variant?: "danger" | "primary";
 }
 
 const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
@@ -14,6 +15,7 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   onCancel,
   confirmLabel = "削除する",
   cancelLabel = "キャンセル",
+  variant = "danger",
 }) => {
   const renderedMessage = message.split("\n").map((line, idx, arr) => (
     <span key={idx}>
@@ -21,6 +23,11 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
       {idx < arr.length - 1 && <br />}
     </span>
   ));
+
+  const confirmClassName =
+    variant === "primary"
+      ? "px-4 py-2 rounded-lg text-sm font-semibold text-white bg-blue-500 hover:bg-blue-600 shadow-sm"
+      : "px-4 py-2 rounded-lg text-sm font-semibold text-white bg-red-500 hover:bg-red-600 shadow-sm";
 
   return (
     <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex justify-center items-center z-50 px-4">
@@ -34,7 +41,7 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
             {cancelLabel}
           </button>
           <button
-            className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-red-500 hover:bg-red-600 shadow-sm"
+            className={confirmClassName}
             onClick={onConfirm}
           >
             {confirmLabel}
