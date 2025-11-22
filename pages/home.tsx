@@ -1,680 +1,80 @@
 import Header from "@/components/Header";
 import ConfirmDialog from "@/components/ConfirmDialog";
-import { useAuth } from "@/context/auth";
-import { useRouter } from "next/router";
+import Breadcrumbs from "@/components/home/Breadcrumbs";
+import UploadActions from "@/components/home/UploadActions";
+import UploadProgress from "@/components/home/UploadProgress";
+import FolderGrid from "@/components/home/FolderGrid";
+import FileGrid from "@/components/home/FileGrid";
+import FolderModal from "@/components/home/FolderModal";
 import { logout } from "@/libs/auth";
-import { useState, useEffect, useRef } from "react";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import {
-  faFileAudio,
-  faFileArchive,
-  faFileImage,
-  faFile,
-  faDownload,
-  faUpload,
-  faTrash,
-  faPause,
-  faPlay,
-  faFolder,
-  faPlus,
-} from "@fortawesome/free-solid-svg-icons";
-import { TailSpin, ThreeDots } from "react-loader-spinner";
-
-interface FileData {
-  name: string;
-  size: string;
-  updated: string;
-}
-
-interface DialogConfig {
-  message: string;
-  onConfirm: () => void;
-  onCancel?: () => void;
-  confirmLabel?: string;
-  cancelLabel?: string;
-  variant?: "danger" | "primary";
-}
+import useHomePage from "@/hooks/useHomePage";
+import { TailSpin } from "react-loader-spinner";
 
 const Home: React.FC = () => {
-  const user = useAuth();
-  const router = useRouter();
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  const [files, setFiles] = useState<FileData[]>([]);
-  const [folders, setFolders] = useState<string[]>([]);
-  const [confirmDialog, setConfirmDialog] = useState<DialogConfig | null>(null);
-  const [uploadProgress, setUploadProgress] = useState<number>(0);
-  const [uploadStatus, setUploadStatus] = useState<{
-    currentFileName: string | null;
-    currentIndex: number;
-    total: number;
-  }>({
-    currentFileName: null,
-    currentIndex: 0,
-    total: 0,
-  });
-  const [uploading, setUploading] = useState<boolean>(false);
-  const [downloading, setDownloading] = useState<boolean>(false);
-  const [currentPath, setCurrentPath] = useState<string>("");
-  const [newFolderName, setNewFolderName] = useState<string>("");
-  const [folderNameError, setFolderNameError] = useState<string | null>(null);
-  const [loadingList, setLoadingList] = useState<boolean>(false);
-  const [isFolderModalOpen, setIsFolderModalOpen] = useState<boolean>(false);
-
-  useEffect(() => {
-    if (!user) {
-      router.push("/");
-    }
-  }, [user, router]);
-
-  const fetchFileList = async (path = currentPath) => {
-    setLoadingList(true);
-    try {
-      const response = await fetch(
-        `/api/get_files?path=${encodeURIComponent(path)}`
-      );
-      if (response.ok) {
-        const data = await response.json();
-        setFolders(data.folders || []);
-        setFiles(data.files || []);
-      } else {
-        console.error("Failed to fetch files");
-      }
-    } catch (error) {
-      console.error("Failed to fetch files", error);
-    } finally {
-      setLoadingList(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchFileList();
-  }, [currentPath]);
-
-  useEffect(() => {
-    if (!isFolderModalOpen) return;
-    const timer = window.setTimeout(() => {
-      folderNameInputRef.current?.focus();
-    }, 50);
-    return () => window.clearTimeout(timer);
-  }, [isFolderModalOpen]);
-
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    if (files && files.length > 0) {
-      const fileArray = Array.from(files);
-      setSelectedFiles((prev) => {
-        const existingNames = new Set(prev.map((file) => file.name));
-        const newFiles = fileArray.filter(
-          (file) => !existingNames.has(file.name)
-        );
-        return [...prev, ...newFiles];
-      });
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
-    }
-  };
-
-  const handleRemoveSelectedFile = (fileName: string) => {
-    setSelectedFiles((prev) => prev.filter((file) => file.name !== fileName));
-  };
-
-  const openConfirm = (config: DialogConfig) => {
-    setConfirmDialog(config);
-  };
-
-  const closeConfirm = () => {
-    setConfirmDialog(null);
-  };
-
-  const openFolderModal = () => {
-    setNewFolderName("");
-    setFolderNameError(null);
-    setIsFolderModalOpen(true);
-  };
-
-  const closeFolderModal = () => {
-    setIsFolderModalOpen(false);
-    setNewFolderName("");
-    setFolderNameError(null);
-  };
-
-  const performUpload = async (uploadTargets: File[]) => {
-    if (uploadTargets.length === 0) return;
-    setUploading(true);
-    setUploadProgress(0);
-    setUploadStatus({
-      currentFileName: uploadTargets[0].name,
-      currentIndex: 0,
-      total: uploadTargets.length,
-    });
-
-    try {
-      for (let i = 0; i < uploadTargets.length; i++) {
-        const file = uploadTargets[i];
-        setUploadStatus({
-          currentFileName: file.name,
-          currentIndex: i,
-          total: uploadTargets.length,
-        });
-        setUploadProgress(0);
-
-        const response = await fetch("/api/generate_upload_url", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            fileName: file.name,
-            contentType: file.type,
-            path: currentPath,
-          }),
-        });
-
-        if (!response.ok) {
-          throw new Error(`${file.name} のアップロードURL取得に失敗しました`);
-        }
-
-        const { url } = await response.json();
-
-        const uploadResult = await new Promise<boolean>((resolve) => {
-          const xhr = new XMLHttpRequest();
-          xhr.open("PUT", url, true);
-          xhr.setRequestHeader("Content-Type", file.type);
-          xhr.timeout = 600000; // 600,000ms = 10min
-
-          xhr.upload.onprogress = (event) => {
-            if (event.lengthComputable) {
-              const percentComplete = (event.loaded / event.total) * 100;
-              setUploadProgress(percentComplete);
-            }
-          };
-
-          xhr.onload = () => {
-            if (xhr.status === 200) {
-              resolve(true);
-            } else {
-              resolve(false);
-            }
-          };
-
-          xhr.onerror = () => {
-            resolve(false);
-          };
-
-          xhr.ontimeout = () => {
-            resolve(false);
-          };
-
-          xhr.send(file);
-        });
-
-        if (!uploadResult) {
-          throw new Error(`${file.name} のアップロードに失敗しました`);
-        }
-      }
-
-      alert("ファイルがアップロードされました！");
-      setSelectedFiles([]);
-      setUploadProgress(0);
-      setUploadStatus({ currentFileName: null, currentIndex: 0, total: 0 });
-      fetchFileList();
-    } catch (error) {
-      console.log("アップロード中にエラーが発生しました", error);
-      const message =
-        error instanceof Error
-          ? error.message
-          : "アップロード中にエラーが発生しました";
-      alert(message);
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const handleUpload = async () => {
-    if (selectedFiles.length === 0) {
-      alert("ファイルを選択してください");
-      return;
-    }
-
-    const existingNames = new Set(files.map((f) => f.name));
-    const duplicateFiles = selectedFiles.filter((file) =>
-      existingNames.has(file.name)
-    );
-
-    const uploadWithoutDuplicates = () => {
-      const targets = selectedFiles.filter(
-        (file) => !existingNames.has(file.name)
-      );
-      if (targets.length === 0) {
-        alert("すべて同名ファイルのためアップロードを中止しました");
-        return;
-      }
-      performUpload(targets);
-    };
-
-    if (duplicateFiles.length > 0) {
-      const duplicateList = duplicateFiles
-        .map((file) => `・${file.name}`)
-        .join("\n");
-      openConfirm({
-        message: `同じフォルダに以下のファイルが存在します。\n${duplicateList}\n\n上書きしてアップロードしますか？`,
-        confirmLabel: "上書きしてアップロード",
-        cancelLabel: "重複をスキップ",
-        variant: "primary",
-        onConfirm: () => {
-          closeConfirm();
-          performUpload(selectedFiles);
-        },
-        onCancel: () => {
-          closeConfirm();
-          uploadWithoutDuplicates();
-        },
-      });
-      return;
-    }
-
-    await performUpload(selectedFiles);
-  };
-
-  const getFileIcon = (filename: string) => {
-    const extension = filename.split(".").pop();
-    switch (extension) {
-      case "wav":
-      case "mp3":
-        return faFileAudio;
-      case "zip":
-        return faFileArchive;
-      case "png":
-      case "jpg":
-      case "jpeg":
-        return faFileImage;
-      default:
-        return faFile;
-    }
-  };
-
-  const isAudio = (filename: string) => {
-    const extension = filename.split(".").pop()?.toLowerCase();
-    return extension === "mp3" || extension === "wav";
-  };
-
-  const formatFileSize = (sizeInBytes: number) => {
-    const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
-    if (sizeInBytes === 0) return "0 Byte";
-
-    const i = Math.floor(Math.log(sizeInBytes) / Math.log(1024));
-    if (i === 0) return `${sizeInBytes} ${sizes[i]}`;
-    return `${(sizeInBytes / Math.pow(1024, i)).toFixed(2)} ${sizes[i]}`;
-  };
-
-  const convertToJST = (dateString: string) => {
-    const date = new Date(dateString);
-    const jstDate = new Date(date.getTime());
-
-    return new Intl.DateTimeFormat("ja-JP", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    }).format(jstDate);
-  };
-
-  const [currentPlayingFile, setCurrentPlayingFile] = useState<string | null>(
-    null
-  );
-  const currentAudioRef = useRef<HTMLAudioElement | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const folderNameInputRef = useRef<HTMLInputElement | null>(null);
-  const [loadingAudioFile, setLoadingAudioFile] = useState<string | null>(null);
-
-  const handlePlayAudio = async (filename: string) => {
-    if (currentPlayingFile === filename && currentAudioRef.current) {
-      currentAudioRef.current.pause();
-      setCurrentPlayingFile(null);
-      currentAudioRef.current = null;
-      return;
-    }
-
-    if (currentAudioRef.current) {
-      currentAudioRef.current.pause();
-      currentAudioRef.current = null;
-      setCurrentPlayingFile(null);
-    }
-
-    const audio = new Audio(
-      `/api/get_audio?file=${encodeURIComponent(
-        filename
-      )}&path=${encodeURIComponent(currentPath)}`
-    );
-    audio.setAttribute("playsinline", "true");
-
-    setLoadingAudioFile(filename);
-
-    audio.onwaiting = () => {
-      setLoadingAudioFile(filename);
-    };
-    audio.oncanplay = () => {
-      setLoadingAudioFile(null);
-    };
-    audio.oncanplaythrough = () => {
-      setLoadingAudioFile(null);
-    };
-    audio.onerror = () => {
-      setLoadingAudioFile(null);
-    };
-    audio.onended = () => {
-      currentAudioRef.current = null;
-      setCurrentPlayingFile(null);
-      setLoadingAudioFile(null);
-    };
-
-    audio
-      .play()
-      .then(() => {
-        currentAudioRef.current = audio;
-        setCurrentPlayingFile(filename);
-      })
-      .catch((err) => {
-        console.error("音声再生に失敗しました", err);
-        setLoadingAudioFile(null);
-      });
-  };
-
-  const handleDownload = async (filename: string) => {
-    setDownloading(true);
-    try {
-      const response = await fetch("/api/generate_download_url", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ fileName: filename, path: currentPath }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const url = data.url;
-
-        const fileResponse = await fetch(url);
-        const blob = await fileResponse.blob();
-        const blobUrl = window.URL.createObjectURL(blob);
-
-        const a = document.createElement("a");
-        a.href = blobUrl;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        a.remove();
-      } else {
-        console.error("Failed file download");
-      }
-    } catch (error) {
-      console.error("ダウンロード中にエラーが発生しました");
-    } finally {
-      setDownloading(false);
-    }
-  };
-
-  const deleteFile = async (fileName: string) => {
-    try {
-      const encodedFilename = encodeURIComponent(fileName);
-      const response = await fetch(
-        `/api/delete?file=${encodedFilename}&path=${encodeURIComponent(
-          currentPath
-        )}`,
-        {
-          method: "DELETE",
-        }
-      );
-      if (response.ok) {
-        await fetchFileList();
-      } else {
-        console.error("削除に失敗しました");
-      }
-    } catch (error) {
-      console.error("削除中にエラーが発生しました", error);
-    }
-  };
-
-  const handleDeleteClick = (fileName: string) => {
-    openConfirm({
-      message: `"${fileName}" を削除しますか？\n※この操作は取り消せません`,
-      confirmLabel: "削除する",
-      cancelLabel: "キャンセル",
-      onConfirm: () => {
-        closeConfirm();
-        deleteFile(fileName);
-      },
-    });
-  };
-
-  const handleCreateFolder = async (force = false) => {
-    const trimmedName = newFolderName.trim();
-    if (!trimmedName) {
-      setFolderNameError("フォルダ名を入力してください");
-      return;
-    }
-    try {
-      const response = await fetch("/api/folders", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          path: currentPath,
-          name: trimmedName,
-          force,
-        }),
-      });
-
-      if (response.status === 409 && !force) {
-        openConfirm({
-          message: `同じ階層に"${trimmedName}"が存在します。同名で作成しますか？`,
-          confirmLabel: "同名で作成",
-          cancelLabel: "やめる",
-          onConfirm: () => {
-            closeConfirm();
-            handleCreateFolder(true);
-          },
-        });
-        return;
-      }
-
-      if (!response.ok) {
-        throw new Error("フォルダ作成に失敗しました");
-      }
-
-      setNewFolderName("");
-      setFolderNameError(null);
-      closeFolderModal();
-      fetchFileList();
-    } catch (error) {
-      console.error("フォルダ作成に失敗しました", error);
-    }
-  };
-
-  const deleteFolder = async (folderPath: string) => {
-    try {
-      const response = await fetch(
-        `/api/folders?path=${encodeURIComponent(folderPath)}`,
-        {
-          method: "DELETE",
-        }
-      );
-      if (!response.ok) {
-        throw new Error("フォルダ削除に失敗しました");
-      }
-      fetchFileList();
-    } catch (error) {
-      console.error("フォルダ削除に失敗しました", error);
-    }
-  };
-
-  const handleDeleteFolderClick = (folder: string) => {
-    const targetPath = `${currentPath}${folder}`;
-    openConfirm({
-      message: `"${targetPath}" 配下の全ファイル・フォルダを削除しますか？\n※この操作は取り消せません`,
-      confirmLabel: "削除する",
-      cancelLabel: "やめる",
-      onConfirm: () => {
-        closeConfirm();
-        deleteFolder(targetPath);
-      },
-    });
-  };
-
-  const handleFolderClick = (folder: string) => {
-    setCurrentPath(`${currentPath}${folder}`);
-  };
-
-  const breadcrumbs = [
-    { label: "uploads", path: "" },
-    ...currentPath
-      .split("/")
-      .filter(Boolean)
-      .map((segment, index, arr) => {
-        const partialPath = arr.slice(0, index + 1).join("/") + "/";
-        return { label: segment, path: partialPath };
-      }),
-  ];
+  const {
+    user,
+    breadcrumbs,
+    selectedFiles,
+    files,
+    folders,
+    confirmDialog,
+    uploadProgress,
+    uploadStatus,
+    uploading,
+    downloading,
+    currentPath,
+    newFolderName,
+    folderNameError,
+    loadingList,
+    isFolderModalOpen,
+    currentPlayingFile,
+    loadingAudioFile,
+    fileInputRef,
+    folderNameInputRef,
+    handleFileChange,
+    handleRemoveSelectedFile,
+    handleUpload,
+    handlePlayAudio,
+    handleDownload,
+    handleDeleteClick,
+    handleDeleteFolderClick,
+    handleFolderClick,
+    closeConfirm,
+    openFolderModal,
+    closeFolderModal,
+    setCurrentPath,
+    fetchFileList,
+    handleFolderNameChange,
+    handleCreateFolder,
+    getFileIcon,
+    isAudio,
+    formatFileSize,
+    convertToJST,
+  } = useHomePage();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 text-slate-800">
       <Header user={user} logout={logout} />
       <div className="max-w-6xl mx-auto px-4 py-6 space-y-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center flex-wrap gap-2 text-sm text-slate-600">
-            <span className="text-xs text-slate-500 mr-1">現在のフォルダ:</span>
-            {breadcrumbs.map((crumb, index) => {
-              const isLast = index === breadcrumbs.length - 1;
-              return (
-                <div key={crumb.path} className="flex items-center gap-2">
-                  <button
-                    className={`transition-colors ${
-                      isLast
-                        ? "px-3 py-1 rounded-full bg-blue-100 text-blue-800 font-semibold"
-                        : "text-blue-700 hover:text-blue-900"
-                    }`}
-                    onClick={() => setCurrentPath(crumb.path)}
-                  >
-                    {crumb.label}
-                  </button>
-                  {index < breadcrumbs.length - 1 && (
-                    <span className="text-slate-400">/</span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        <Breadcrumbs breadcrumbs={breadcrumbs} onNavigate={setCurrentPath} />
 
-        <div className="bg-white/80 backdrop-blur rounded-xl shadow-sm border border-white/60 p-4 space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <p className="text-xs text-slate-500">アップロード先</p>
-              <p className="text-base font-semibold text-slate-800">
-                uploads/{currentPath || ""}
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <label
-                htmlFor="file-upload"
-                className="inline-flex items-center gap-2 cursor-pointer rounded-full bg-blue-600 text-white px-4 py-2 text-sm shadow-sm hover:bg-blue-700 transition-colors"
-              >
-                <FontAwesomeIcon icon={faFile} className="h-4" />
-                <span>ファイルを選択</span>
-                <input
-                  id="file-upload"
-                  name="file-upload"
-                  type="file"
-                  className="sr-only"
-                  ref={fileInputRef}
-                  onChange={handleFileChange}
-                  multiple
-                  accept=".wav,.mp3,.zip,.png,.pdf,.jpg,.jpeg"
-                />
-              </label>
-              <button
-                onClick={handleUpload}
-                disabled={selectedFiles.length === 0 || uploading}
-                className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold shadow-sm transition-colors ${
-                  selectedFiles.length > 0 && !uploading
-                    ? "bg-blue-500 text-white hover:bg-blue-600"
-                    : "bg-slate-200 text-slate-400 cursor-not-allowed"
-                }`}
-              >
-                <FontAwesomeIcon icon={faUpload} className="h-4" />
-                {uploading ? "アップロード中..." : "アップロード"}
-              </button>
-              <button
-                onClick={openFolderModal}
-                className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold shadow-sm transition-colors bg-white text-blue-700 border border-blue-100 hover:border-blue-300"
-              >
-                <FontAwesomeIcon icon={faPlus} className="h-4" />
-                フォルダ作成
-              </button>
-              <button
-                onClick={() => fetchFileList()}
-                className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-semibold shadow-sm transition-colors bg-white text-slate-600 border border-slate-100 hover:border-slate-300"
-              >
-                ↺ 再読み込み
-              </button>
-            </div>
-          </div>
+        <UploadActions
+          currentPath={currentPath}
+          selectedFiles={selectedFiles}
+          uploading={uploading}
+          onUpload={handleUpload}
+          onFileChange={handleFileChange}
+          fileInputRef={fileInputRef}
+          onOpenFolderModal={openFolderModal}
+          onReload={() => fetchFileList()}
+          onRemoveSelectedFile={handleRemoveSelectedFile}
+        />
 
-          {selectedFiles.length > 0 && (
-            <div className="border border-slate-100 rounded-lg p-3 bg-slate-50/60">
-              <div className="flex items-center justify-between gap-2 flex-wrap">
-                <span className="font-semibold text-slate-800">
-                  選択されたファイル ({selectedFiles.length}件)
-                </span>
-                <span className="text-xs text-slate-500">
-                  不要なファイルは×で削除できます
-                </span>
-              </div>
-              <div className="flex flex-wrap gap-2 mt-2">
-                {selectedFiles.map((file) => (
-                  <span
-                    key={file.name}
-                    className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white text-slate-700 border border-slate-200 shadow-sm"
-                  >
-                    <span className="text-xs truncate max-w-[180px]">
-                      {file.name}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveSelectedFile(file.name)}
-                      className="text-slate-400 hover:text-red-500 transition-colors"
-                      aria-label={`${file.name} を選択から削除`}
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-        {uploading && (
-          <div className="bg-white/80 border border-white/60 rounded-lg shadow-sm px-4 py-3 space-y-2">
-            <div className="flex flex-wrap items-center justify-between text-xs text-slate-600 gap-2">
-              <span>
-                アップロード中 ({uploadStatus.currentIndex + 1}/
-                {uploadStatus.total}件)
-              </span>
-              <span className="text-slate-700 font-semibold">
-                {uploadStatus.currentFileName}
-              </span>
-              <span>{uploadProgress.toFixed(1)}%</span>
-            </div>
-            <div className="w-full h-2 rounded-full bg-slate-200 overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-blue-400 to-blue-600"
-                style={{ width: `${Math.min(uploadProgress, 100)}%` }}
-              />
-            </div>
-          </div>
-        )}
+        <UploadProgress
+          uploading={uploading}
+          uploadStatus={uploadStatus}
+          uploadProgress={uploadProgress}
+        />
 
         <div className="space-y-6">
           <section className="bg-white/80 backdrop-blur border border-white/60 rounded-xl shadow-sm p-5">
@@ -689,50 +89,12 @@ const Home: React.FC = () => {
                 {folders.length}件
               </span>
             </div>
-            {loadingList ? (
-              <div className="flex items-center justify-center text-slate-600 py-6">
-                <TailSpin color="#3b82f6" height={30} width={30} />
-                <span className="ml-2">読み込み中...</span>
-              </div>
-            ) : folders.length === 0 ? (
-              <div className="flex items-center justify-between rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                <span>
-                  フォルダはありません。右上の「フォルダ作成」で追加できます。
-                </span>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {folders.map((folder) => (
-                  <div
-                    key={folder}
-                    className="relative group rounded-xl border border-white/60 bg-gradient-to-br from-white to-slate-50 shadow-sm hover:shadow-md transition-shadow cursor-pointer p-4"
-                    onClick={() => handleFolderClick(folder)}
-                  >
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteFolderClick(folder);
-                      }}
-                      aria-label="Delete folder"
-                      className="absolute top-3 right-3 text-slate-400 hover:text-red-500 transition-colors"
-                    >
-                      <FontAwesomeIcon icon={faTrash} className="h-4" />
-                    </button>
-                    <div className="flex items-center gap-3">
-                      <div className="h-12 w-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shadow-inner">
-                        <FontAwesomeIcon icon={faFolder} className="text-lg" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-base font-semibold text-slate-800 truncate">
-                          {folder}
-                        </p>
-                        <p className="text-xs text-slate-500">フォルダを開く</p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+            <FolderGrid
+              folders={folders}
+              loading={loadingList}
+              onFolderClick={handleFolderClick}
+              onDeleteFolderClick={handleDeleteFolderClick}
+            />
           </section>
 
           <section className="bg-white/80 backdrop-blur border border-white/60 rounded-xl shadow-sm p-5">
@@ -752,115 +114,20 @@ const Home: React.FC = () => {
                 ※ステレオ(2ch)wavファイルはブラウザ再生できません
               </p>
             </div>
-            {loadingList ? (
-              <div className="flex items-center justify-center text-slate-600 py-6">
-                <TailSpin color="#3b82f6" height={30} width={30} />
-                <span className="ml-2">読み込み中...</span>
-              </div>
-            ) : files.length === 0 ? (
-              <div className="flex items-center justify-between rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                <span>ファイルはありません。アップロードしてください。</span>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {files.map((file, index) => (
-                  <div
-                    key={`${file.name}-${index}`}
-                    className="rounded-xl border border-white/60 bg-gradient-to-br from-white to-slate-50 shadow-sm hover:shadow-md transition-shadow p-4 space-y-3"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="h-12 w-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shadow-inner">
-                        <FontAwesomeIcon
-                          icon={getFileIcon(file.name)}
-                          className="text-lg"
-                        />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-base font-semibold text-slate-800 truncate">
-                          {file.name}
-                        </p>
-                        <p className="text-xs text-slate-500">
-                          {formatFileSize(parseInt(file.size, 10))}
-                        </p>
-                      </div>
-                    </div>
-                    <p className="text-xs text-slate-500">
-                      アップロード日時: {convertToJST(file.updated)}
-                    </p>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <button
-                        onClick={
-                          isAudio(file.name)
-                            ? () => handlePlayAudio(file.name)
-                            : undefined
-                        }
-                        disabled={!isAudio(file.name)}
-                        aria-label={
-                          isAudio(file.name)
-                            ? currentPlayingFile === file.name
-                              ? "Stop audio"
-                              : "Play audio"
-                            : "File"
-                        }
-                        className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold shadow-sm transition-colors ${
-                          isAudio(file.name)
-                            ? currentPlayingFile === file.name
-                              ? "bg-blue-700 text-white"
-                              : "bg-blue-500 text-white hover:bg-blue-600"
-                            : "bg-slate-200 text-slate-400 cursor-not-allowed"
-                        }`}
-                      >
-                        {isAudio(file.name) &&
-                        loadingAudioFile === file.name ? (
-                          <ThreeDots color="#0f172a" height={20} width={20} />
-                        ) : (
-                          <FontAwesomeIcon
-                            icon={
-                              isAudio(file.name)
-                                ? currentPlayingFile === file.name
-                                  ? faPause
-                                  : faPlay
-                                : faFile
-                            }
-                            className="h-3"
-                          />
-                        )}
-                        <span>
-                          {isAudio(file.name)
-                            ? currentPlayingFile === file.name
-                              ? "Stop"
-                              : loadingAudioFile === file.name
-                              ? "Loading..."
-                              : "Play"
-                            : ""}
-                        </span>
-                      </button>
-                      <button
-                        onClick={() => handleDownload(file.name)}
-                        aria-label="Download file"
-                        className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold shadow-sm transition-colors ${
-                          downloading
-                            ? "bg-slate-200 text-slate-400 cursor-not-allowed"
-                            : "bg-white text-blue-700 border border-blue-100 hover:border-blue-300"
-                        }`}
-                        disabled={downloading}
-                      >
-                        <FontAwesomeIcon icon={faDownload} className="h-3" />
-                        Download
-                      </button>
-                      <button
-                        onClick={() => handleDeleteClick(file.name)}
-                        aria-label="Delete file"
-                        className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold shadow-sm transition-colors bg-white text-red-600 border border-red-100 hover:border-red-300"
-                      >
-                        <FontAwesomeIcon icon={faTrash} className="h-3" />
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+            <FileGrid
+              files={files}
+              loading={loadingList}
+              currentPlayingFile={currentPlayingFile}
+              loadingAudioFile={loadingAudioFile}
+              downloading={downloading}
+              isAudio={isAudio}
+              getFileIcon={getFileIcon}
+              formatFileSize={formatFileSize}
+              convertToJST={convertToJST}
+              onPlayAudio={handlePlayAudio}
+              onDownload={handleDownload}
+              onDelete={handleDeleteClick}
+            />
           </section>
         </div>
 
@@ -875,51 +142,16 @@ const Home: React.FC = () => {
           />
         )}
 
-        {isFolderModalOpen && (
-          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-40 px-4">
-            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4 border border-slate-100">
-              <div>
-                <p className="text-xs text-slate-500">フォルダ作成</p>
-                <h3 className="text-lg font-semibold text-slate-800">
-                  新しいフォルダを追加
-                </h3>
-                <p className="text-xs text-slate-500 mt-1">
-                  作成先: uploads/{currentPath || ""}
-                </p>
-              </div>
-              <div className="space-y-2">
-                <input
-                  ref={folderNameInputRef}
-                  type="text"
-                  value={newFolderName}
-                  onChange={(e) => {
-                    setNewFolderName(e.target.value);
-                    setFolderNameError(null);
-                  }}
-                  placeholder="フォルダ名を入力"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
-                />
-                {folderNameError && (
-                  <p className="text-xs text-red-500">{folderNameError}</p>
-                )}
-              </div>
-              <div className="flex items-center justify-end gap-2">
-                <button
-                  onClick={closeFolderModal}
-                  className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200"
-                >
-                  キャンセル
-                </button>
-                <button
-                  onClick={() => handleCreateFolder(false)}
-                  className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-blue-500 hover:bg-blue-600 shadow-sm"
-                >
-                  作成する
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        <FolderModal
+          isOpen={isFolderModalOpen}
+          currentPath={currentPath}
+          newFolderName={newFolderName}
+          folderNameError={folderNameError}
+          folderNameInputRef={folderNameInputRef}
+          onChangeName={handleFolderNameChange}
+          onClose={closeFolderModal}
+          onCreate={() => handleCreateFolder(false)}
+        />
       </div>
       {downloading && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50">
