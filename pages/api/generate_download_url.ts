@@ -1,5 +1,6 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { Storage } from "@google-cloud/storage";
+import { normalizePath, validateFileName } from "./utils/path";
 
 export default async function handler(
   req: NextApiRequest,
@@ -10,7 +11,7 @@ export default async function handler(
     return;
   }
 
-  const { fileName } = req.body;
+  const { fileName, path: rawPath } = req.body;
 
   if (!fileName) {
     res.status(400).json({ message: "File name is required" });
@@ -18,6 +19,8 @@ export default async function handler(
   }
 
   try {
+    const path = normalizePath(rawPath);
+    const safeFileName = validateFileName(fileName);
     const storage = new Storage({ keyFilename: process.env.STORAGE_SA_KEY });
     const bucketName = process.env.BUCKET_NAME;
 
@@ -28,7 +31,7 @@ export default async function handler(
     }
 
     const bucket = storage.bucket(bucketName);
-    const file = bucket.file(`uploads/${fileName}`);
+    const file = bucket.file(`uploads/${path}${safeFileName}`);
 
     const [url] = await file.getSignedUrl({
       version: "v4",

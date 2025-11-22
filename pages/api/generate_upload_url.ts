@@ -1,5 +1,6 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { Storage } from "@google-cloud/storage";
+import { normalizePath, validateFileName } from "./utils/path";
 
 const storage = new Storage({ keyFilename: process.env.STORAGE_SA_KEY });
 
@@ -21,7 +22,7 @@ export default async function handler(
     return;
   }
 
-  const { fileName, contentType } = req.body;
+  const { fileName, contentType, path: rawPath } = req.body;
   if (!fileName || !contentType) {
     res
       .status(400)
@@ -30,12 +31,14 @@ export default async function handler(
   }
 
   try {
+    const path = normalizePath(rawPath);
+    const safeFileName = validateFileName(fileName);
     const bucketName = process.env.BUCKET_NAME;
     if (!bucketName) {
       throw new Error("Environment variable BUCKET_NAME is not defined");
     }
     const bucket = storage.bucket(bucketName);
-    const file = bucket.file(`uploads/${fileName}`);
+    const file = bucket.file(`uploads/${path}${safeFileName}`);
 
     const [url] = await file.getSignedUrl({
       version: "v4",

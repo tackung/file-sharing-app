@@ -1,11 +1,12 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { Storage, GetFileMetadataResponse } from "@google-cloud/storage";
+import { normalizePath, validateFileName } from "./utils/path";
 
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  const { file } = req.query;
+  const { file, path: rawPath } = req.query;
 
   if (!file || Array.isArray(file)) {
     return res.status(400).json({ error: "Invalid file parameter" });
@@ -18,11 +19,15 @@ export default async function handler(
   }
 
   try {
+    const safeFileName = validateFileName(file);
+    const path = normalizePath(
+      Array.isArray(rawPath) ? rawPath[0] : (rawPath as string | undefined)
+    );
     const storage = new Storage({
       keyFilename: process.env.STORAGE_SA_KEY, // サービスアカウントJSONへのパス
     });
     const bucket = storage.bucket(bucketName);
-    const fileRef = bucket.file(`uploads/${file}`);
+    const fileRef = bucket.file(`uploads/${path}${safeFileName}`);
     const [fileExists] = await fileRef.exists();
     if (!fileExists) {
       console.error(`File not found on GCS: ${file}`);
