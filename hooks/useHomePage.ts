@@ -1,5 +1,5 @@
 import { useRouter } from "next/router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/context/auth";
 import { getFileIcon, isAudio, formatFileSize, convertToJST } from "@/libs/fileMeta";
 
@@ -17,6 +17,8 @@ export interface DialogConfig {
   cancelLabel?: string;
   variant?: "danger" | "primary";
 }
+
+type SortKey = "name" | "updated";
 
 const useHomePage = () => {
   const user = useAuth();
@@ -46,6 +48,9 @@ const useHomePage = () => {
     null
   );
   const [loadingAudioFile, setLoadingAudioFile] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<SortKey>("name");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  const [filterText, setFilterText] = useState<string>("");
 
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -252,6 +257,40 @@ const useHomePage = () => {
     }
 
     await performUpload(selectedFiles);
+  };
+
+  const displayFiles = useMemo(() => {
+    const keyword = filterText.trim().toLowerCase();
+    const filtered = keyword
+      ? files.filter((file) => file.name.toLowerCase().includes(keyword))
+      : files;
+
+    const sorted = [...filtered].sort((a, b) => {
+      if (sortKey === "name") {
+        return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+      }
+      const aTime = new Date(a.updated).getTime();
+      const bTime = new Date(b.updated).getTime();
+      return aTime - bTime;
+    });
+
+    if (sortDirection === "desc") {
+      sorted.reverse();
+    }
+
+    return sorted;
+  }, [files, filterText, sortDirection, sortKey]);
+
+  const handleSortKeyChange = (value: SortKey) => {
+    setSortKey(value);
+  };
+
+  const handleToggleSortDirection = () => {
+    setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+  };
+
+  const handleFilterTextChange = (value: string) => {
+    setFilterText(value);
   };
 
   const handlePlayAudio = async (filename: string) => {
@@ -499,8 +538,12 @@ const useHomePage = () => {
     isFolderModalOpen,
     currentPlayingFile,
     loadingAudioFile,
+    sortKey,
+    sortDirection,
+    filterText,
     fileInputRef,
     folderNameInputRef,
+    displayFiles,
     handleFileChange,
     handleRemoveSelectedFile,
     handleUpload,
@@ -517,6 +560,9 @@ const useHomePage = () => {
     setNewFolderName,
     handleFolderNameChange,
     handleCreateFolder,
+    handleSortKeyChange,
+    handleToggleSortDirection,
+    handleFilterTextChange,
     getFileIcon,
     isAudio,
     formatFileSize,
