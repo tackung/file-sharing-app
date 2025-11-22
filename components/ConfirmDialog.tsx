@@ -4,12 +4,16 @@ interface ConfirmDialogProps {
   message: string;
   onConfirm: () => void;
   onCancel: () => void;
+  confirmLabel?: string;
+  cancelLabel?: string;
 }
 
 const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   message,
   onConfirm,
   onCancel,
+  confirmLabel = "😁 削除しちゃう",
+  cancelLabel = "😰 やっぱやめた",
 }) => {
   return (
     <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex justify-center items-center">
@@ -20,13 +24,13 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
             className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded mr-2"
             onClick={onConfirm}
           >
-            😁 削除しちゃう
+            {confirmLabel}
           </button>
           <button
             className="bg-gray-300 hover:bg-gray-500 text-black font-bold py-2 px-4 rounded"
             onClick={onCancel}
           >
-            😰 やっぱやめた
+            {cancelLabel}
           </button>
         </div>
       </div>
