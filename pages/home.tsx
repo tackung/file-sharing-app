@@ -29,6 +29,10 @@ const Home: React.FC = () => {
     isFolderModalOpen,
     currentPlayingFile,
     loadingAudioFile,
+    sortKey,
+    sortDirection,
+    filterText,
+    displayFiles,
     fileInputRef,
     folderNameInputRef,
     handleFileChange,
@@ -46,6 +50,9 @@ const Home: React.FC = () => {
     fetchFileList,
     handleFolderNameChange,
     handleCreateFolder,
+    handleSortKeyChange,
+    handleToggleSortDirection,
+    handleFilterTextChange,
     getFileIcon,
     isAudio,
     formatFileSize,
@@ -78,7 +85,7 @@ const Home: React.FC = () => {
 
         <div className="space-y-6">
           <section className="bg-white/80 backdrop-blur border border-white/60 rounded-xl shadow-sm p-5">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
               <div>
                 <p className="text-xs text-slate-500">フォルダ</p>
                 <h5 className="text-xl font-semibold text-slate-800">
@@ -98,16 +105,42 @@ const Home: React.FC = () => {
           </section>
 
           <section className="bg-white/80 backdrop-blur border border-white/60 rounded-xl shadow-sm p-5">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
               <div>
                 <p className="text-xs text-slate-500">ファイル</p>
                 <h5 className="text-xl font-semibold text-slate-800">
                   ファイル一覧
                 </h5>
               </div>
-              <span className="text-xs text-slate-500 bg-slate-100 px-3 py-1 rounded-full">
-                {files.length}件
-              </span>
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={sortKey}
+                  onChange={(e) =>
+                    handleSortKeyChange(e.target.value as "name" | "updated")
+                  }
+                  className="text-xs text-slate-600 bg-white border border-slate-200 rounded-lg px-2 py-1 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                >
+                  <option value="name">ファイル名</option>
+                  <option value="updated">アップロード日時</option>
+                </select>
+                <button
+                  onClick={handleToggleSortDirection}
+                  className="text-xs text-slate-600 bg-white border border-slate-200 rounded-lg px-2 py-1 shadow-sm hover:border-blue-200 transition-colors"
+                  aria-label="ソート順を切り替え"
+                >
+                  {sortDirection === "asc" ? "昇順" : "降順"}
+                </button>
+                <input
+                  type="text"
+                  value={filterText}
+                  onChange={(e) => handleFilterTextChange(e.target.value)}
+                  placeholder="名前/拡張子で絞り込む"
+                  className="text-xs text-slate-600 bg-white border border-slate-200 rounded-lg px-3 py-1 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+                />
+                <span className="text-xs text-slate-500 bg-slate-100 px-3 py-1 rounded-full">
+                  {displayFiles.length}件
+                </span>
+              </div>
             </div>
             <div>
               <p className="text-xs text-slate-500 mt-1">
@@ -115,7 +148,7 @@ const Home: React.FC = () => {
               </p>
             </div>
             <FileGrid
-              files={files}
+              files={displayFiles}
               loading={loadingList}
               currentPlayingFile={currentPlayingFile}
               loadingAudioFile={loadingAudioFile}
