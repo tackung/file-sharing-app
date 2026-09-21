@@ -1,4 +1,5 @@
 import { NextApiRequest, NextApiResponse } from "next";
+import { requireAllowedUser } from "@/libs/server/auth";
 import { Storage } from "@google-cloud/storage";
 import { normalizePath, validateFileName } from "./utils/path";
 
@@ -11,6 +12,7 @@ export default async function handler(
     return;
   }
 
+  if (!(await requireAllowedUser(req, res))) return;
   const { fileName, path: rawPath } = req.body;
 
   if (!fileName) {
@@ -36,6 +38,9 @@ export default async function handler(
     const [url] = await file.getSignedUrl({
       version: "v4",
       action: "read",
+      responseType: safeFileName.toLowerCase().endsWith(".wav")
+        ? "audio/wav"
+        : safeFileName.toLowerCase().endsWith(".mp3") ? "audio/mpeg" : undefined,
       expires: Date.now() + 30 * 60 * 1000, // 30分後に失効
     });
 

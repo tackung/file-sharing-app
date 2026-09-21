@@ -1,4 +1,5 @@
 import { NextApiRequest, NextApiResponse } from "next";
+import { requireAllowedUser } from "@/libs/server/auth";
 import { Storage, GetFileMetadataResponse } from "@google-cloud/storage";
 import { normalizePath, validateFileName } from "./utils/path";
 
@@ -6,6 +7,11 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
+  if (req.method !== "GET") {
+    res.status(405).json({ message: "Method Not Allowed" });
+    return;
+  }
+  if (!(await requireAllowedUser(req, res))) return;
   const { file, path: rawPath } = req.query;
 
   if (!file || Array.isArray(file)) {
@@ -67,7 +73,6 @@ export default async function handler(
       `Final contentType for ${file}: ${contentType}, size=${fileSize}`
     );
 
-    res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Accept-Ranges", "bytes");
 
     const range = req.headers.range;

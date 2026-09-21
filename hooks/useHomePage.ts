@@ -1,6 +1,7 @@
 import { useRouter } from "next/router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/context/auth";
+import { apiFetch } from "@/libs/api";
 import { getFileIcon, isAudio, formatFileSize, convertToJST } from "@/libs/fileMeta";
 
 export interface FileData {
@@ -53,23 +54,28 @@ const useHomePage = () => {
   const [filterText, setFilterText] = useState<string>("");
 
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
+  const audioRequestRef = useRef(0);
+  const listRequestRef = useRef(0);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const folderNameInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    if (!user) {
+    if (user === null) {
       router.push("/");
     }
   }, [user, router]);
 
   const fetchFileList = async (path = currentPath) => {
+    if (!user) return;
+    const request = ++listRequestRef.current;
     setLoadingList(true);
     try {
-      const response = await fetch(
+      const response = await apiFetch(
         `/api/get_files?path=${encodeURIComponent(path)}`
       );
       if (response.ok) {
         const data = await response.json();
+        if (request !== listRequestRef.current) return;
         setFolders(data.folders || []);
         setFiles(data.files || []);
       } else {
@@ -78,13 +84,33 @@ const useHomePage = () => {
     } catch (error) {
       console.error("Failed to fetch files", error);
     } finally {
-      setLoadingList(false);
+      if (request === listRequestRef.current) setLoadingList(false);
     }
   };
 
   useEffect(() => {
-    fetchFileList();
-  }, [currentPath]);
+    if (user) fetchFileList();
+    return () => { listRequestRef.current++; };
+    // The list reloads only when the authenticated user or folder changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPath, user]);
+
+  useEffect(() => {
+    setCurrentPlayingFile(null);
+    setLoadingAudioFile(null);
+    return () => {
+      audioRequestRef.current++;
+      const audio = currentAudioRef.current;
+      if (audio) {
+        audio.onwaiting = audio.oncanplay = audio.oncanplaythrough = null;
+        audio.onerror = audio.onended = null;
+        audio.pause();
+        audio.removeAttribute("src");
+        audio.load();
+        currentAudioRef.current = null;
+      }
+    };
+  }, [currentPath, user]);
 
   useEffect(() => {
     if (!isFolderModalOpen) return;
@@ -143,7 +169,7 @@ const useHomePage = () => {
         });
         setUploadProgress(0);
 
-        const response = await fetch("/api/generate_upload_url", {
+        const response = await apiFetch("/api/generate_upload_url", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -294,62 +320,76 @@ const useHomePage = () => {
   };
 
   const handlePlayAudio = async (filename: string) => {
-    if (currentPlayingFile === filename && currentAudioRef.current) {
-      currentAudioRef.current.pause();
-      setCurrentPlayingFile(null);
+    const request = ++audioRequestRef.current;
+    const previous = currentAudioRef.current;
+    if (previous) {
+      previous.onwaiting = previous.oncanplay = previous.oncanplaythrough = null;
+      previous.onerror = previous.onended = null;
+      previous.pause();
+      previous.removeAttribute("src");
+      previous.load();
       currentAudioRef.current = null;
-      return;
     }
-
-    if (currentAudioRef.current) {
-      currentAudioRef.current.pause();
-      currentAudioRef.current = null;
-      setCurrentPlayingFile(null);
-    }
-
-    const audio = new Audio(
-      `/api/get_audio?file=${encodeURIComponent(
-        filename
-      )}&path=${encodeURIComponent(currentPath)}`
-    );
-    audio.setAttribute("playsinline", "true");
+    setCurrentPlayingFile(null);
+    setLoadingAudioFile(null);
+    if (currentPlayingFile === filename || loadingAudioFile === filename) return;
 
     setLoadingAudioFile(filename);
-
-    audio.onwaiting = () => {
-      setLoadingAudioFile(filename);
-    };
-    audio.oncanplay = () => {
-      setLoadingAudioFile(null);
-    };
-    audio.oncanplaythrough = () => {
-      setLoadingAudioFile(null);
-    };
-    audio.onerror = () => {
-      setLoadingAudioFile(null);
-    };
-    audio.onended = () => {
-      currentAudioRef.current = null;
-      setCurrentPlayingFile(null);
-      setLoadingAudioFile(null);
-    };
-
-    audio
-      .play()
-      .then(() => {
-        currentAudioRef.current = audio;
-        setCurrentPlayingFile(filename);
-      })
-      .catch((err) => {
-        console.error("音声再生に失敗しました", err);
-        setLoadingAudioFile(null);
+    try {
+      const response = await apiFetch("/api/generate_download_url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileName: filename, path: currentPath }),
       });
+      if (!response.ok) throw new Error("Failed to get audio URL");
+      const { url } = await response.json();
+      if (request !== audioRequestRef.current) return;
+      const audio = new Audio(url);
+      audio.setAttribute("playsinline", "true");
+      currentAudioRef.current = audio;
+      const finish = () => {
+        if (request !== audioRequestRef.current) return;
+        audio.onwaiting = audio.oncanplay = audio.oncanplaythrough = null;
+        audio.onerror = audio.onended = null;
+        audio.pause();
+        audio.removeAttribute("src");
+        audio.load();
+        currentAudioRef.current = null;
+        setCurrentPlayingFile(null);
+        setLoadingAudioFile(null);
+      };
+      audio.onwaiting = () => {
+        if (request === audioRequestRef.current) setLoadingAudioFile(filename);
+      };
+      audio.oncanplay = audio.oncanplaythrough = () => {
+        if (request === audioRequestRef.current) setLoadingAudioFile(null);
+      };
+      audio.onerror = audio.onended = finish;
+      await audio.play();
+      if (request === audioRequestRef.current && currentAudioRef.current === audio) {
+        setCurrentPlayingFile(filename);
+      }
+    } catch (error) {
+      if (request !== audioRequestRef.current) return;
+      const audio = currentAudioRef.current;
+      if (audio) {
+        audio.onwaiting = audio.oncanplay = audio.oncanplaythrough = null;
+        audio.onerror = audio.onended = null;
+        audio.pause();
+        audio.removeAttribute("src");
+        audio.load();
+      }
+      currentAudioRef.current = null;
+      setLoadingAudioFile(null);
+      setCurrentPlayingFile(null);
+      console.error("音声再生に失敗しました", error);
+    }
   };
 
   const handleDownload = async (filename: string) => {
     setDownloading(true);
     try {
-      const response = await fetch("/api/generate_download_url", {
+      const response = await apiFetch("/api/generate_download_url", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -385,7 +425,7 @@ const useHomePage = () => {
   const deleteFile = async (fileName: string) => {
     try {
       const encodedFilename = encodeURIComponent(fileName);
-      const response = await fetch(
+      const response = await apiFetch(
         `/api/delete?file=${encodedFilename}&path=${encodeURIComponent(
           currentPath
         )}`,
@@ -422,7 +462,7 @@ const useHomePage = () => {
       return;
     }
     try {
-      const response = await fetch("/api/folders", {
+      const response = await apiFetch("/api/folders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -460,7 +500,7 @@ const useHomePage = () => {
 
   const deleteFolder = async (folderPath: string) => {
     try {
-      const response = await fetch(
+      const response = await apiFetch(
         `/api/folders?path=${encodeURIComponent(folderPath)}`,
         {
           method: "DELETE",

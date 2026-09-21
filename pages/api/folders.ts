@@ -1,4 +1,5 @@
 import { NextApiRequest, NextApiResponse } from "next";
+import { requireAllowedUser } from "@/libs/server/auth";
 import { Storage } from "@google-cloud/storage";
 import { normalizePath, validateFileName } from "./utils/path";
 
@@ -8,6 +9,11 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
+  if (req.method !== "POST" && req.method !== "DELETE") {
+    res.status(405).json({ message: "Method Not Allowed" });
+    return;
+  }
+  if (!(await requireAllowedUser(req, res))) return;
   const bucketName = process.env.BUCKET_NAME;
   if (!bucketName) {
     console.error("Environment variable BUCKET_NAME is not defined.");
