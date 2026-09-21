@@ -1,5 +1,5 @@
 # Node.jsの公式イメージをベースとする
-FROM node:18 as builder
+FROM node:22 AS builder
 
 # 作業ディレクトリを指定
 WORKDIR /app
@@ -8,7 +8,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # 依存関係のインストール
-RUN npm install
+RUN npm ci --no-audit --no-fund
 
 # アプリのソースコードをコピー
 COPY . .
@@ -17,7 +17,7 @@ COPY . .
 RUN npm run build
 
 # 本番環境用のイメージ
-FROM node:18-slim
+FROM node:22-slim
 
 WORKDIR /app
 
