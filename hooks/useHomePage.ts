@@ -402,16 +402,20 @@ const useHomePage = () => {
         const url = data.url;
 
         const fileResponse = await fetch(url);
+        if (!fileResponse.ok) throw new Error("Failed to download file");
         const blob = await fileResponse.blob();
-        const blobUrl = window.URL.createObjectURL(blob);
-
         const a = document.createElement("a");
-        a.href = blobUrl;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        a.remove();
+        const blobUrl = window.URL.createObjectURL(blob);
+        try {
+          a.href = blobUrl;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+        } finally {
+          a.remove();
+          // Allow the browser to start consuming the URL before releasing it.
+          window.setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
+        }
       } else {
         console.error("Failed file download");
       }
