@@ -40,7 +40,8 @@ react: 18.2.0
 1. `key-sa-storage.json` に自身の情報を追記する
 2. アプリを起動
    ```bash
-   yarn dev
+   npm ci
+   npm run dev
    ```
 3. ブラウザ上で[http://localhost:3000](http://localhost:3000)にアクセスする
 
@@ -65,6 +66,8 @@ docker push gcr.io/<push先>
    - `GCP_PROJECT_ID`: GCP におけるプロジェクト名
    - `BUCKET_NAME`: GCS のバケット名
    - `ALLOWED_EMAILS`: ログイン可能な Google アカウント(メールアドレス)
+   - `FIREBASE_PROJECT_ID`: 任意。IDトークンを検証するFirebaseプロジェクトID。省略時は`NEXT_PUBLIC_FIREBASE_PROJECT_ID`を使用
+   - `STORAGE_SA_KEY`: Storage用サービスアカウント鍵のパス（ADCを利用する場合は省略）
 3. GCR で定義された URL(`https://xxx.a.run.app`)からアクセス
 
 ## 技術スタック

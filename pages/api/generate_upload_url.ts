@@ -1,4 +1,5 @@
 import { NextApiRequest, NextApiResponse } from "next";
+import { requireAllowedUser } from "@/libs/server/auth";
 import { Storage } from "@google-cloud/storage";
 import { normalizePath, validateFileName } from "./utils/path";
 
@@ -8,10 +9,6 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-
   if (req.method === "OPTIONS") {
     res.status(204).end();
     return;
@@ -22,6 +19,7 @@ export default async function handler(
     return;
   }
 
+  if (!(await requireAllowedUser(req, res))) return;
   const { fileName, contentType, path: rawPath } = req.body;
   if (!fileName || !contentType) {
     res
