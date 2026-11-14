@@ -65,8 +65,11 @@ const FileGrid: React.FC<Props> = ({
           className="rounded-xl border border-white/60 bg-gradient-to-br from-white to-slate-50 shadow-sm hover:shadow-md transition-shadow p-4 space-y-3"
         >
           <div className="flex items-center gap-3 min-w-0">
-            <div className="h-12 w-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shadow-inner">
-              <FontAwesomeIcon icon={getFileIcon(file.name)} className="text-lg" />
+            <div className="h-12 w-12 shrink-0 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shadow-inner">
+              <FontAwesomeIcon
+                icon={getFileIcon(file.name)}
+                className="h-5 w-5 shrink-0"
+              />
             </div>
             <div className="min-w-0">
               <p className="text-base font-semibold text-slate-800 truncate">

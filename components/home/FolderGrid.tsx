@@ -52,8 +52,8 @@ const FolderGrid: React.FC<Props> = ({
             <FontAwesomeIcon icon={faTrash} className="h-4" />
           </button>
           <div className="flex items-center gap-3">
-            <div className="h-12 w-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shadow-inner">
-              <FontAwesomeIcon icon={faFolder} className="text-lg" />
+            <div className="h-12 w-12 shrink-0 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shadow-inner">
+              <FontAwesomeIcon icon={faFolder} className="h-5 w-5 shrink-0" />
             </div>
             <div className="min-w-0">
               <p className="text-base font-semibold text-slate-800 truncate">
