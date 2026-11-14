@@ -15,6 +15,10 @@
 # production
 /build
 
+# generated tenant configuration and assets
+/config/tenant.generated.json
+/public/tenant/
+
 # misc
 .DS_Store
 *.pem

@@ -2,6 +2,7 @@ import React from "react";
 import styled from "styled-components";
 import { FaHandsHoldingCircle } from "react-icons/fa6";
 import { MdOutlineLogout } from "react-icons/md";
+import tenant from "@/libs/tenant";
 
 const HeaderContainer = styled.div`
   display: flex;
@@ -30,7 +31,7 @@ const Header: React.FC<HeaderProps> = ({ user, logout }) => {
     <HeaderContainer className="flex justify-between items-center bg-gray-900 text-white">
       <HeaderLogo className="ml-4 mb-2 flex items-center">
         <FaHandsHoldingCircle size={40} className="mr-4 ml-2" />
-        HAL-SHARE
+        {tenant.headerTitle}
       </HeaderLogo>
       {user && (
         <button

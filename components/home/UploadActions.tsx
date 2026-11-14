@@ -2,6 +2,7 @@ import React from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faFile, faPlus, faUpload } from "@fortawesome/free-solid-svg-icons";
 import SelectedFiles from "@/components/home/SelectedFiles";
+import { getFolderDisplayPath } from "@/libs/tenant";
 
 interface Props {
   currentPath: string;
@@ -34,7 +35,7 @@ const UploadActions: React.FC<Props> = ({
         <div>
           <p className="text-xs text-slate-500">アップロード先</p>
           <p className="text-base font-semibold text-slate-800">
-            uploads/{currentPath || ""}
+            {getFolderDisplayPath(currentPath)}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">

@@ -3,8 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+    "dev": "node scripts/tenant.mjs dev dummy",
+    "build": "node scripts/tenant.mjs build",
+    "tenant:prepare": "node scripts/tenant.mjs prepare",
+    "image:build": "node scripts/build-image.mjs",
+    "typecheck": "tsc --noEmit --incremental false",
     "start": "next start",
     "lint": "next lint"
   },

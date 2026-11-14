@@ -2,6 +2,7 @@ import { useRouter } from "next/router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/context/auth";
 import { apiFetch } from "@/libs/api";
+import tenant from "@/libs/tenant";
 import { getFileIcon, isAudio, formatFileSize, convertToJST } from "@/libs/fileMeta";
 
 export interface FileData {
@@ -549,7 +550,7 @@ const useHomePage = () => {
   };
 
   const breadcrumbs = [
-    { label: "uploads", path: "" },
+    { label: tenant.rootFolderLabel, path: "" },
     ...currentPath
       .split("/")
       .filter(Boolean)

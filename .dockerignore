@@ -21,5 +21,6 @@ coverage
 **/*.spec.*
 
 # 5) その他、アップロード不要なファイル・秘密情報など
-.env
-.env.*.local
+.env*
+key-sa-storage*.json
+*.pem

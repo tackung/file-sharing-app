@@ -2,6 +2,7 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { requireAllowedUser } from "@/libs/server/auth";
 import { Storage } from "@google-cloud/storage";
 import { normalizePath, validateFileName } from "./utils/path";
+import { getStorageRootPrefix } from "@/libs/server/storagePath";
 
 export default async function handler(
   req: NextApiRequest,
@@ -33,7 +34,7 @@ export default async function handler(
     }
 
     const bucket = storage.bucket(bucketName);
-    const file = bucket.file(`uploads/${path}${safeFileName}`);
+    const file = bucket.file(`${getStorageRootPrefix()}${path}${safeFileName}`);
 
     const [url] = await file.getSignedUrl({
       version: "v4",

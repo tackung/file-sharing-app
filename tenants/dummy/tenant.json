@@ -1,0 +1,9 @@
+{
+  "id": "file",
+  "tenantName": "FILE",
+  "appName": "FILE-SHARE",
+  "loginTitle": "FILE-SHARE",
+  "headerTitle": "FILE-SHARE",
+  "rootFolderLabel": "/home",
+  "loginImageSource": "tenants/dummy/assets/login-background-original.jpeg"
+}

@@ -2,6 +2,7 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { requireAllowedUser } from "@/libs/server/auth";
 import { Storage } from "@google-cloud/storage";
 import { normalizePath } from "./utils/path";
+import { getStorageRootPrefix } from "@/libs/server/storagePath";
 
 export default async function handler(
   req: NextApiRequest,
@@ -27,7 +28,7 @@ export default async function handler(
     const path = normalizePath(rawPath);
     const storage = new Storage({ keyFilename: process.env.STORAGE_SA_KEY });
     const bucket = storage.bucket(bucketName);
-    const prefix = `uploads/${path}`;
+    const prefix = `${getStorageRootPrefix()}${path}`;
     const [myFiles, , apiResponse] = await bucket.getFiles({
       prefix,
       delimiter: "/",

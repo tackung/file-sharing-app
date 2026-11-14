@@ -2,6 +2,7 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { requireAllowedUser } from "@/libs/server/auth";
 import { Storage, GetFileMetadataResponse } from "@google-cloud/storage";
 import { normalizePath, validateFileName } from "./utils/path";
+import { getStorageRootPrefix } from "@/libs/server/storagePath";
 
 export default async function handler(
   req: NextApiRequest,
@@ -33,7 +34,7 @@ export default async function handler(
       keyFilename: process.env.STORAGE_SA_KEY, // サービスアカウントJSONへのパス
     });
     const bucket = storage.bucket(bucketName);
-    const fileRef = bucket.file(`uploads/${path}${safeFileName}`);
+    const fileRef = bucket.file(`${getStorageRootPrefix()}${path}${safeFileName}`);
     const [fileExists] = await fileRef.exists();
     if (!fileExists) {
       console.error(`File not found on GCS: ${file}`);
