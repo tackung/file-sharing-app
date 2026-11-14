@@ -1,84 +1,78 @@
-# file-share - プライベートメンバー用クラウドファイルシェアアプリ
+# file-share
 
-This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+限定したプライベートメンバー内で利用可能なクラウドファイルシェアアプリ
 
-## What is this?
+## エレベーターピッチ
 
-(エレベーターピッチ)
-
-- `安価でファイル共有` がしたい
+- `ファイル共有のコストを抑え` たい
 - `複数人で活動しているチーム` 向けの、
 - `file-share` というアプリは、
-- `プライベートメンバー向けクラウドストレージサービス` である。
-- これは `安価でチーム内でのファイル共有` ができ、
+- `プライベートメンバー専用のクラウドファイル共有サービス` である。
+- これは `許可したメンバーのみにアクセスを限定したファイル共有` ができ、
 - `GoogleDriveやDropBox` とは違って、
 - `プランや容量を気にせず圧倒的安価でファイルを保管・共有することができる機能` が備わっている。
 
-## 機能
+## 主な機能
 
-- 事前にホワイトリストに登録した Google アカウントでの認証
-- ブラウザ上でのファイルアップロード/ダウンロード/削除
+- Googleアカウントによるログインと利用許可リストでのアクセス制御
+- ファイルのアップロード・ダウンロード・削除
+- フォルダによるファイル管理
+- 音声ファイルのブラウザ再生
 
 ### デモ
 
-<img src="./images/demo.gif" alt="demo" width=90%>
+<img src="./images/demo.gif" alt="アプリのデモ" width="90%">
 
-## 実行方法
+## 構成
 
-### 実行環境
+Next.js / React / TypeScriptで実装し、Cloud Runで動作します。認証にFirebase Authentication、ファイル保存にCloud Storage、プロフィール保存にFirestoreを使用します。
 
-```
-node: >= v18.12
-next: 14.0.4
-react: 18.2.0
-```
+### 技術スタック
 
-### アプリの起動方法
+- フロントエンド: Next.js / React / TypeScript / Tailwind CSS
+- バックエンド: Next.js API Routes / Node.js / TypeScript
+- 認証: Firebase Authentication（Googleログイン）
+- ファイルストレージ: Google Cloud Storage
+- プロフィール管理: Cloud Firestore
+- コンテナ・デプロイ: Docker / Google Cloud Run / Artifact Registry
 
-(ローカルの場合)
+テナントごとの設定・画像は`tenants/<tenant-id>/`で管理します。サンプルは`tenants/dummy/`です。Firebaseの認証基盤は共通利用し、Cloud Runサービス・GCSバケット・実行サービスアカウント・利用許可リストはテナントごとに分けます。
 
-1. `key-sa-storage.json` に自身の情報を追記する
-2. アプリを起動
-   ```bash
-   npm ci
-   npm run dev
-   ```
-3. ブラウザ上で[http://localhost:3000](http://localhost:3000)にアクセスする
+<img src="./images/architecture.png" alt="構成図" width="75%">
 
----
+## ローカル起動
 
-(クラウド上へのデプロイの場合)
+Node.js 22以上を使用します。[.env.example](./.env.example)を参考に`.env.local`を設定し、サンプルを起動します。
 
-1. イメージの build と GCR への push
-
-```
-docker build --platform linux/amd64 -t <タグ名> .
-docker push gcr.io/<push先>
+```bash
+npm ci
+npm run dev
 ```
 
-2. GCR 上で下記の環境変数を指定のうえデプロイ
-   - `NEXT_PUBLIC_FIREBASE_API_KEY`: Firebase におけるパブック API キー
-   - `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`: Firebase 上で設定しているドメイン名(`xxx.firebaseapp.com`)
-   - `NEXT_PUBLIC_FIREBASE_PROJECT_ID`: Firebase のプロジェクト名
-   - `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET`: Firebase におけるストレージバケット名
-   - `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID`: Firebase におけるメッセージング送信用 ID
-   - `NEXT_PUBLIC_FIREBASE_APP_ID`:
-   - `GCP_PROJECT_ID`: GCP におけるプロジェクト名
-   - `BUCKET_NAME`: GCS のバケット名
-   - `ALLOWED_EMAILS`: ログイン可能な Google アカウント(メールアドレス)
-   - `FIREBASE_PROJECT_ID`: 任意。IDトークンを検証するFirebaseプロジェクトID。省略時は`NEXT_PUBLIC_FIREBASE_PROJECT_ID`を使用
-   - `STORAGE_SA_KEY`: Storage用サービスアカウント鍵のパス（ADCを利用する場合は省略）
-3. GCR で定義された URL(`https://xxx.a.run.app`)からアクセス
+ブラウザで[http://localhost:3000](http://localhost:3000)を開きます。
 
-## 技術スタック
+## デプロイ
 
-- フロントエンド: Next.js / React / TypeScript
-- バックエンド: Node.js / TypeScript
-- インフラ: GoogleCloud, Firebase
-  - 認証: Firebase Authentication
-  - ストレージ: CloudStorage
-  - デプロイ: Docker on CloudRun
+事前にGoogle Cloudのレジストリ・Cloud Runサービス・GCSバケット・実行サービスアカウントを用意します。Cloud Runには`BUCKET_NAME`・`ALLOWED_EMAILS`・`FIREBASE_PROJECT_ID`を設定し、実行サービスアカウントへ対象バケットの操作権限と自身の署名権限を付与します。Firebaseの承認済みドメインとGCSのCORSも設定してください。
 
-### 構成概要図
+以下は、構築済みのCloud Runサービスを更新する手順です。Firebaseの公開用設定（`NEXT_PUBLIC_FIREBASE_*`）はビルド前に設定します。実行にはgcloud・Dockerの認証と、対象リソースへの操作権限が必要です。
 
-<img src="./images/architecture.png" alt="コンポーネント図" width=75%>
+```bash
+export PROJECT_ID="your-project-id"
+export REGION="asia-northeast1"
+export TENANT_ID="dummy"
+export SERVICE="file-share"
+export IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/REPOSITORY/${SERVICE}:TAG"
+
+# 対象テナントのイメージをビルド・push
+npm ci
+npm run image:build -- "$TENANT_ID" "$IMAGE"
+docker push "$IMAGE"
+
+# 既存のサービス設定を維持してイメージを更新
+gcloud run deploy "$SERVICE" \
+  --project="$PROJECT_ID" --region="$REGION" \
+  --image="$IMAGE"
+```
+
+`TENANT_ID`には`tenants/`内のディレクトリ名を指定します。プロジェクト・サービス・リポジトリ・タグはデプロイ先に合わせて変更してください。更新後、ログインとファイル操作を確認します。

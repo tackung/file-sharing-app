@@ -2,6 +2,7 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { requireAllowedUser } from "@/libs/server/auth";
 import { Storage } from "@google-cloud/storage";
 import { normalizePath, validateFileName } from "./utils/path";
+import { getStorageRootPrefix } from "@/libs/server/storagePath";
 
 const storage = new Storage({ keyFilename: process.env.STORAGE_SA_KEY });
 
@@ -28,7 +29,7 @@ export default async function handler(
       const folderName = validateFileName(name);
 
       const bucket = storage.bucket(bucketName);
-      const prefix = `uploads/${path}${folderName}/`;
+      const prefix = `${getStorageRootPrefix()}${path}${folderName}/`;
       const placeholder = bucket.file(`${prefix}.keep`);
 
       const [exists] = await placeholder.exists();
@@ -51,7 +52,7 @@ export default async function handler(
       }
 
       const bucket = storage.bucket(bucketName);
-      const prefix = `uploads/${targetPath}`;
+      const prefix = `${getStorageRootPrefix()}${targetPath}`;
 
       const [files] = await bucket.getFiles({ prefix });
       if (files.length === 0) {

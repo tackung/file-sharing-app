@@ -1,6 +1,6 @@
 const INVALID_SEGMENT_PATTERN = /(^\.{1,2}$)|[\\/]/;
 
-// Normalize path under uploads/; returns '' for root, always ends with '/'
+// Normalize a path relative to the configured storage root; '' is the root.
 export const normalizePath = (rawPath?: string): string => {
   const path = (rawPath || "").trim();
   if (path === "") return "";

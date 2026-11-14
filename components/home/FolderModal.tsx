@@ -1,4 +1,5 @@
 import React from "react";
+import { getFolderDisplayPath } from "@/libs/tenant";
 
 interface Props {
   isOpen: boolean;
@@ -32,7 +33,7 @@ const FolderModal: React.FC<Props> = ({
             新しいフォルダを追加
           </h3>
           <p className="text-xs text-slate-500 mt-1">
-            作成先: uploads/{currentPath || ""}
+            作成先: {getFolderDisplayPath(currentPath)}
           </p>
         </div>
         <div className="space-y-2">
