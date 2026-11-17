@@ -4,7 +4,7 @@ import Breadcrumbs from "@/components/home/Breadcrumbs";
 import UploadActions from "@/components/home/UploadActions";
 import UploadProgress from "@/components/home/UploadProgress";
 import FolderGrid from "@/components/home/FolderGrid";
-import FileGrid from "@/components/home/FileGrid";
+import ImageFileBrowser from "@/components/home/ImageFileBrowser";
 import FolderModal from "@/components/home/FolderModal";
 import { logout } from "@/libs/auth";
 import useHomePage from "@/hooks/useHomePage";
@@ -26,6 +26,7 @@ const Home: React.FC = () => {
     newFolderName,
     folderNameError,
     loadingList,
+    listRevision,
     isFolderModalOpen,
     currentPlayingFile,
     loadingAudioFile,
@@ -147,8 +148,10 @@ const Home: React.FC = () => {
                 ※ステレオ(2ch)wavファイルはブラウザ再生できません
               </p>
             </div>
-            <FileGrid
-              files={displayFiles}
+            <ImageFileBrowser
+              key={JSON.stringify([user?.id ?? null, currentPath, listRevision, loadingList])}
+              currentPath={currentPath}
+              files={user ? displayFiles : []}
               loading={loadingList}
               currentPlayingFile={currentPlayingFile}
               loadingAudioFile={loadingAudioFile}

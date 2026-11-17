@@ -3,6 +3,7 @@ import { requireAllowedUser } from "@/libs/server/auth";
 import { Storage } from "@google-cloud/storage";
 import { normalizePath, validateFileName } from "./utils/path";
 import { getStorageRootPrefix } from "@/libs/server/storagePath";
+import { getImageContentType } from "@/libs/fileMeta";
 
 export default async function handler(
   req: NextApiRequest,
@@ -41,7 +42,9 @@ export default async function handler(
       action: "read",
       responseType: safeFileName.toLowerCase().endsWith(".wav")
         ? "audio/wav"
-        : safeFileName.toLowerCase().endsWith(".mp3") ? "audio/mpeg" : undefined,
+        : safeFileName.toLowerCase().endsWith(".mp3")
+          ? "audio/mpeg"
+          : getImageContentType(safeFileName),
       expires: Date.now() + 30 * 60 * 1000, // 30分後に失効
     });
 

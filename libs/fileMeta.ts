@@ -6,8 +6,17 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 import { IconDefinition } from "@fortawesome/fontawesome-svg-core";
 
+export const getImageContentType = (filename: string): string | undefined => {
+  const extension = filename.match(/\.([^.]+)$/)?.[1].toLowerCase();
+  if (extension === "png") return "image/png";
+  if (extension === "jpg" || extension === "jpeg") return "image/jpeg";
+  return undefined;
+};
+
+export const isImage = (filename: string) => Boolean(getImageContentType(filename));
+
 export const getFileIcon = (filename: string): IconDefinition => {
-  const extension = filename.split(".").pop();
+  const extension = filename.split(".").pop()?.toLowerCase();
   switch (extension) {
     case "wav":
     case "mp3":
