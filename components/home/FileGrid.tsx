@@ -10,8 +10,11 @@ import {
 import { TailSpin, ThreeDots } from "react-loader-spinner";
 import { FileData } from "@/hooks/useHomePage";
 import { IconDefinition } from "@fortawesome/fontawesome-svg-core";
+import { isImage } from "@/libs/fileMeta";
+import type { ImagePreviewController } from "@/hooks/useImagePreview";
+import ImageThumbnail from "./ImageThumbnail";
 
-interface Props {
+export interface FileGridProps {
   files: FileData[];
   loading: boolean;
   currentPlayingFile: string | null;
@@ -24,9 +27,10 @@ interface Props {
   onPlayAudio: (filename: string) => void;
   onDownload: (filename: string) => void;
   onDelete: (filename: string) => void;
+  imagePreview?: ImagePreviewController;
 }
 
-const FileGrid: React.FC<Props> = ({
+const FileGrid: React.FC<FileGridProps> = ({
   files,
   loading,
   currentPlayingFile,
@@ -39,6 +43,7 @@ const FileGrid: React.FC<Props> = ({
   onPlayAudio,
   onDownload,
   onDelete,
+  imagePreview,
 }) => {
   if (loading) {
     return (
@@ -59,11 +64,14 @@ const FileGrid: React.FC<Props> = ({
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      {files.map((file, index) => (
+      {files.map((file) => (
         <div
-          key={`${file.name}-${index}`}
+          key={JSON.stringify([file.name, file.updated])}
           className="rounded-xl border border-white/60 bg-gradient-to-br from-white to-slate-50 shadow-sm hover:shadow-md transition-shadow p-4 space-y-3"
         >
+          {isImage(file.name) && imagePreview && (
+            <ImageThumbnail file={file} preview={imagePreview} />
+          )}
           <div className="flex items-center gap-3 min-w-0">
             <div className="h-12 w-12 shrink-0 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shadow-inner">
               <FontAwesomeIcon
@@ -72,9 +80,16 @@ const FileGrid: React.FC<Props> = ({
               />
             </div>
             <div className="min-w-0">
-              <p className="text-base font-semibold text-slate-800 truncate">
-                {file.name}
-              </p>
+              {isImage(file.name) && imagePreview ? (
+                <button
+                  type="button"
+                  onClick={() => imagePreview.openImage(file)}
+                  className="block max-w-full truncate text-left text-base font-semibold text-blue-700 hover:underline focus-visible:ring-2 focus-visible:ring-blue-500"
+                  title={file.name}
+                >{file.name}</button>
+              ) : (
+                <p className="text-base font-semibold text-slate-800 truncate">{file.name}</p>
+              )}
               <p className="text-xs text-slate-500">
                 {formatFileSize(parseInt(file.size, 10))}
               </p>
@@ -84,39 +99,46 @@ const FileGrid: React.FC<Props> = ({
             アップロード日時: {convertToJST(file.updated)}
           </p>
           <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={
-                isAudio(file.name) ? () => onPlayAudio(file.name) : undefined
-              }
-              disabled={!isAudio(file.name)}
-              aria-label={
-                isAudio(file.name)
-                  ? currentPlayingFile === file.name
-                    ? "Stop audio"
-                    : "Play audio"
-                  : "File"
-              }
-              className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold shadow-sm transition-colors ${
-                isAudio(file.name)
-                  ? currentPlayingFile === file.name
-                    ? "bg-blue-700 text-white"
-                    : "bg-blue-500 text-white hover:bg-blue-600"
-                  : "bg-slate-200 text-slate-400 cursor-not-allowed"
-              }`}
-            >
-              {isAudio(file.name) && loadingAudioFile === file.name ? (
-                <ThreeDots color="#0f172a" height={20} width={20} />
-              ) : (
-                <FontAwesomeIcon
-                  icon={
-                    isAudio(file.name)
-                      ? currentPlayingFile === file.name
-                        ? faPause
-                        : faPlay
-                      : faFile
-                  }
-                  className="h-3"
-                />
+            {isImage(file.name) && imagePreview ? (
+              <button
+                type="button"
+                onClick={() => imagePreview.openImage(file)}
+                className="inline-flex items-center rounded-lg bg-blue-500 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-600 focus-visible:ring-2 focus-visible:ring-blue-500"
+              >View</button>
+            ) : (
+              <button
+                onClick={
+                  isAudio(file.name) ? () => onPlayAudio(file.name) : undefined
+                }
+                disabled={!isAudio(file.name)}
+                aria-label={
+                  isAudio(file.name)
+                    ? currentPlayingFile === file.name
+                      ? "Stop audio"
+                      : "Play audio"
+                    : "File"
+                }
+                className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold shadow-sm transition-colors ${
+                  isAudio(file.name)
+                    ? currentPlayingFile === file.name
+                      ? "bg-blue-700 text-white"
+                      : "bg-blue-500 text-white hover:bg-blue-600"
+                    : "bg-slate-200 text-slate-400 cursor-not-allowed"
+                }`}
+              >
+                {isAudio(file.name) && loadingAudioFile === file.name ? (
+                  <ThreeDots color="#0f172a" height={20} width={20} />
+                ) : (
+                  <FontAwesomeIcon
+                    icon={
+                      isAudio(file.name)
+                        ? currentPlayingFile === file.name
+                          ? faPause
+                          : faPlay
+                        : faFile
+                    }
+                    className="h-3"
+                  />
               )}
               <span>
                 {isAudio(file.name)
@@ -128,6 +150,7 @@ const FileGrid: React.FC<Props> = ({
                   : ""}
               </span>
             </button>
+            )}
             <button
               onClick={() => onDownload(file.name)}
               aria-label="Download file"

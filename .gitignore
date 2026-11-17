@@ -39,7 +39,7 @@ yarn-error.log*
 next-env.d.ts
 
 # key
-key-sa-storage-hal-share.json
+key-sa-storage-*.json
 .env.local
 
 # firebase

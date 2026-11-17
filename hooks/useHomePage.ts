@@ -45,6 +45,7 @@ const useHomePage = () => {
   const [newFolderName, setNewFolderName] = useState<string>("");
   const [folderNameError, setFolderNameError] = useState<string | null>(null);
   const [loadingList, setLoadingList] = useState<boolean>(false);
+  const [listRevision, setListRevision] = useState(0);
   const [isFolderModalOpen, setIsFolderModalOpen] = useState<boolean>(false);
   const [currentPlayingFile, setCurrentPlayingFile] = useState<string | null>(
     null
@@ -69,6 +70,7 @@ const useHomePage = () => {
   const fetchFileList = async (path = currentPath) => {
     if (!user) return;
     const request = ++listRequestRef.current;
+    setListRevision((revision) => revision + 1);
     setLoadingList(true);
     try {
       const response = await apiFetch(
@@ -580,6 +582,7 @@ const useHomePage = () => {
     newFolderName,
     folderNameError,
     loadingList,
+    listRevision,
     isFolderModalOpen,
     currentPlayingFile,
     loadingAudioFile,
